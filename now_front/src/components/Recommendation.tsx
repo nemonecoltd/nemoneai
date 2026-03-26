@@ -1,0 +1,250 @@
+"use client";
+
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Route, Heart, ChevronRight, User, Sparkles, X, Share2, Copy, Save } from 'lucide-react';
+import { useSession, signIn } from 'next-auth/react';
+import Link from 'next/link';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import AdUnit from './AdUnit';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+type Tab = 'course' | 'place';
+
+export default function Recommendation({ places: initialPlaces = [], lang = 'ko' }: { places?: any[], lang?: string }) {
+  const { data: session } = useSession();
+  const [activeTab, setActiveTab] = useState<Tab>('course');
+  const [courses, setCourses] = useState([]);
+  const [places, setPlaces] = useState(initialPlaces);
+  const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    setPlaces(initialPlaces);
+  }, [initialPlaces]);
+
+  useEffect(() => {
+    if (activeTab === 'course') {
+      fetchCourses();
+    }
+  }, [activeTab, lang]);
+
+  const fetchCourses = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api-now/courses?lang=${lang}`);
+      if (res.ok) setCourses(await res.json());
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchData = async () => {
+    if (activeTab === 'course') fetchCourses();
+  };
+
+  const toggleCourseLike = async (e: React.MouseEvent, courseId: number) => {
+    e.stopPropagation();
+    if (!session) return signIn();
+
+    try {
+      const res = await fetch('/api-now/courses/like/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_email: session.user?.email, course_id: courseId }),
+      });
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleForkCourse = async (course: any) => {
+    if (!session) return signIn();
+    
+    try {
+      const res = await fetch('/api-now/courses/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_email: session.user?.email,
+          title: `[퍼감] ${course.title}`,
+          description: course.description,
+          steps: Array.isArray(course.steps) ? course.steps : JSON.parse(course.steps),
+          region: course.region || '성수'
+        }),
+      });
+      if (res.ok) {
+        alert("내 마이페이지로 코스를 가져왔습니다!");
+        setSelectedCourse(null);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col bg-zinc-50">
+      <div className="px-6 py-4">
+        <div className="flex bg-zinc-200/50 p-1 rounded-2xl">
+          <button onClick={() => setActiveTab('course')} className={cn("flex-1 py-2.5 rounded-xl text-xs font-bold transition-all", activeTab === 'course' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
+            {lang === 'en' ? 'Courses' : '코스 랭킹'}
+          </button>
+          <button onClick={() => setActiveTab('place')} className={cn("flex-1 py-2.5 rounded-xl text-xs font-bold transition-all", activeTab === 'place' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
+            {lang === 'en' ? 'Places' : '플레이스 랭킹'}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 pb-24 no-scrollbar">
+        <AnimatePresence mode="wait">
+          {activeTab === 'course' ? (
+            <motion.div key="c" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              {courses.slice(0, 25).map((course: any, idx: number) => (
+                <div key={course.id}>
+                  <div onClick={() => setSelectedCourse(course)} className="bg-white p-5 rounded-3xl border border-zinc-100 shadow-sm space-y-4 cursor-pointer hover:border-emerald-200 transition-all group relative overflow-hidden mb-4">
+                    <div className="absolute -left-1 -top-1 w-8 h-8 bg-zinc-900 text-white text-[10px] font-black rounded-br-2xl flex items-center justify-center shadow-lg z-10">
+                      {idx + 1}
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-100 flex-shrink-0">
+                        <img src={course.user_image || ""} className="w-full h-full object-cover" alt="" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-[10px] font-bold text-zinc-900 truncate">{course.user_name}</p>
+                          <span className={cn(
+                            "text-[7px] font-black px-1.5 py-0.5 rounded uppercase border",
+                            (course.region && course.region.includes('홍대'))
+                              ? "bg-orange-50 text-orange-600 border-orange-100" 
+                              : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                          )}>
+                            {lang === 'en' ? (course.region && course.region.includes('홍대') ? 'Hongdae' : 'Seongsu') : (course.region || '성수')}
+                          </span>
+                        </div>
+                        <p className="text-[8px] text-zinc-400 font-medium">Verified Local Guide</p>
+                      </div>
+                      <button onClick={(e) => toggleCourseLike(e, course.id)} className="flex items-center gap-1.5 bg-zinc-50 px-3 py-1.5 rounded-full border border-zinc-100 hover:bg-rose-50 transition-all group/like">
+                        <Heart size={14} className="text-zinc-300 group-hover/like:text-rose-500 transition-colors" />
+                        <span className="text-[10px] font-black text-zinc-400 group-hover/like:text-rose-600">{course.like_count}</span>
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-zinc-900 text-sm tracking-tight group-hover:text-emerald-600 transition-colors">
+                        {(lang === 'en' && course.title_en) ? course.title_en : course.title}
+                      </h4>
+                      <p className="text-[11px] text-zinc-500 line-clamp-1">
+                        {(lang === 'en' && course.description_en) ? course.description_en : course.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* AD SLOT: Between 3rd and 4th items */}
+                  {idx === 2 && (
+                    <AdUnit slotId="8058413094" />
+                  )}
+                </div>
+              ))}
+            </motion.div>
+          ) : (
+            <motion.div key="p" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              {places.slice(0, 25).map((place: any, idx: number) => (
+                <div key={place.id}>
+                  <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex gap-4 items-center relative group mb-4">
+                    <div className="absolute -left-2 -top-2 w-6 h-6 bg-zinc-900 text-white text-[10px] font-black rounded-lg flex items-center justify-center shadow-lg z-10">
+                      {idx + 1}
+                    </div>
+                    <div className="relative flex-shrink-0">
+                      <img src={place.image_url || `https://picsum.photos/seed/${place.id}/200`} className="w-16 h-16 rounded-2xl object-cover border border-zinc-50" alt="" />
+                      <div className="absolute -bottom-1 -right-1 shadow-lg">
+                        <span className={cn(
+                          "text-[8px] font-black px-1.5 py-0.5 rounded-md border",
+                          (place.region && place.region.includes('홍대'))
+                            ? "bg-orange-500 text-white border-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.5)]" 
+                            : "bg-emerald-50 text-emerald-600 border-emerald-400"
+                        )}>
+                          {lang === 'en' ? (place.region && place.region.includes('홍대') ? 'HONGDAE' : 'SEONGSU') : (place.region && place.region.includes('홍대') ? '홍대' : '성수')}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-zinc-900 text-sm truncate tracking-tight">
+                        {(lang === 'en' && place.title_en) ? place.title_en : place.title}
+                      </h4>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">
+                          <Heart size={10} fill="currentColor" /> {place.like_count}
+                        </span>
+                        <span className="text-[9px] text-zinc-400 font-medium truncate">
+                          {lang === 'en' ? `Near ${place.region === '성수' ? 'Seongsu' : 'Hongdae'}` : `${place.location?.split(' ')[2] || place.region} 근처`}
+                        </span>
+                      </div>
+                    </div>
+                    <Link href={`/posts/${place.id}`} className="p-2 bg-zinc-50 rounded-xl text-zinc-300 group-hover:bg-emerald-50 group-hover:text-emerald-500 transition-all">
+                      <ChevronRight size={18} />
+                    </Link>
+                  </div>
+
+                  {/* AD SLOT: Between 3rd and 4th items */}
+                  {idx === 2 && (
+                    <AdUnit slotId="8058413094" />
+                  )}
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Course Detail Modal */}
+      <AnimatePresence>
+        {selectedCourse && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end justify-center" onClick={() => setSelectedCourse(null)}>
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="w-full max-w-md bg-white rounded-t-[40px] p-8 max-h-[85vh] overflow-y-auto no-scrollbar shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-start mb-6">
+                <div className="flex items-center gap-3">
+                  <img src={selectedCourse.user_image} className="w-10 h-10 rounded-full border border-zinc-100" alt="" />
+                  <div>
+                    <h3 className="text-xl font-black text-zinc-900 tracking-tight">{selectedCourse.title}</h3>
+                    <p className="text-xs text-zinc-400 font-bold uppercase">{selectedCourse.user_name}의 추천 코스</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedCourse(null)} className="p-2 bg-zinc-100 rounded-full"><X size={20} /></button>
+              </div>
+
+              <div className="relative space-y-8 mb-10 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-zinc-100">
+                {(Array.isArray(selectedCourse.steps) ? selectedCourse.steps : JSON.parse(selectedCourse.steps)).map((step: any, idx: number) => (
+                  <div key={idx} className="relative pl-10">
+                    <div className="absolute left-0 top-1.5 w-6 h-6 rounded-full bg-white border-4 border-emerald-500 z-10" />
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black text-zinc-400 font-mono uppercase">{step.time} • {step.duration}MIN</p>
+                      <div className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100">
+                        <h4 className="font-bold text-zinc-900 text-sm">{step.place_name}</h4>
+                        <p className="text-[11px] text-zinc-500 mt-1">{step.activity}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button 
+                onClick={() => handleForkCourse(selectedCourse)}
+                className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-xl hover:bg-emerald-600 transition-all"
+              >
+                <Save size={20} /> 이 코스 내 마이페이지로 퍼가기
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

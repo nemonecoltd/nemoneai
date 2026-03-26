@@ -1,0 +1,5 @@
+{
+  "name": "오늘 성수 (Today Seongsu)",
+  "description": "성수동 팝업스토어 실시간 현황 및 AI 맞춤형 도보 코스 가이드",
+  "requestFramePermissions": ["geolocation"]
+}
