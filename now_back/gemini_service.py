@@ -66,6 +66,6 @@ def get_embedding(text: str):
     result = client.models.embed_content(
         model="gemini-embedding-2-preview",
         contents=text,
-        config=types.EmbedContentConfig(output_dimensionality=768)
+        config=types.EmbedContentConfig(output_dimensionality=3072)
     )
     return result.embeddings[0].values
