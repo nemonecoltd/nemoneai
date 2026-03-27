@@ -109,6 +109,17 @@ class CourseLikeToggle(BaseModel):
     user_email: str
     course_id: int
 
+class ThemeSave(BaseModel):
+    user_email: str
+    title: str
+    description: str
+    places: List[dict]
+    region: Optional[str] = "성수"
+
+class ThemeLikeToggle(BaseModel):
+    user_email: str
+    theme_id: int
+
 # --- 비밀번호 해싱 설정 ---
 import bcrypt
 
@@ -347,6 +358,123 @@ async def toggle_course_like(req: CourseLikeToggle):
             conn.execute(
                 text("INSERT INTO course_likes (user_email, course_id) VALUES (:email, :course_id)"),
                 {"email": req.user_email, "course_id": req.course_id}
+            )
+            liked = True
+        conn.commit()
+        return {"liked": liked}
+
+@app.post("/themes/save")
+async def save_theme(theme: ThemeSave):
+    import json
+    try:
+        with engine.connect() as conn:
+            conn.execute(
+                text("INSERT INTO users (email) VALUES (:email) ON CONFLICT (email) DO NOTHING"),
+                {"email": theme.user_email}
+            )
+            query = text("""
+                INSERT INTO themes (user_email, title, description, places)
+                VALUES (:email, :title, :description, :places)
+            """)
+            conn.execute(query, {
+                "email": theme.user_email, "title": theme.title,
+                "description": theme.description, "places": json.dumps(theme.places)
+            })
+            conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/themes")
+async def get_all_themes():
+    """테마 랭킹 (최신순 또는 좋아요순)"""
+    query = text("""
+        SELECT t.*, u.name as user_name, u.image_url as user_image, COUNT(tl.id) as computed_like_count
+        FROM themes t
+        JOIN users u ON t.user_email = u.email
+        LEFT JOIN theme_likes tl ON t.id = tl.theme_id
+        GROUP BY t.id, u.name, u.image_url
+        ORDER BY computed_like_count DESC, t.created_at DESC
+    """)
+    with engine.connect() as conn:
+        result = conn.execute(query)
+        # Rename computed_like_count to like_count for frontend
+        themes = []
+        for row in result:
+            theme_dict = dict(row._mapping)
+            theme_dict['like_count'] = theme_dict.pop('computed_like_count')
+            themes.append(theme_dict)
+        return themes
+
+@app.get("/users/{email}/themes")
+async def get_user_themes(email: str):
+    query = text("SELECT * FROM themes WHERE user_email = :email ORDER BY created_at DESC")
+    with engine.connect() as conn:
+        result = conn.execute(query, {"email": email})
+        return [dict(row._mapping) for row in result]
+
+@app.put("/themes/{theme_id}")
+async def update_theme(theme_id: int, theme: ThemeSave):
+    import json
+    try:
+        with engine.connect() as conn:
+            # Check authority
+            existing = conn.execute(text("SELECT user_email FROM themes WHERE id = :id"), {"id": theme_id}).fetchone()
+            if not existing:
+                raise HTTPException(status_code=404, detail="Theme not found")
+            if theme.user_email != 'nemonecoltd@gmail.com' and existing[0] != theme.user_email:
+                raise HTTPException(status_code=403, detail="Not authorized")
+
+            query = text("""
+                UPDATE themes 
+                SET title = :title, description = :description, places = :places
+                WHERE id = :id
+            """)
+            conn.execute(query, {
+                "id": theme_id, "title": theme.title,
+                "description": theme.description, "places": json.dumps(theme.places)
+            })
+            conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/themes/{theme_id}")
+async def delete_theme(theme_id: int, user_email: str):
+    """테마 삭제 (작성자 또는 관리자)"""
+    with engine.connect() as conn:
+        theme = conn.execute(text("SELECT user_email FROM themes WHERE id = :id"), {"id": theme_id}).fetchone()
+        if not theme:
+            raise HTTPException(status_code=404, detail="Theme not found")
+        
+        # 관리자 이메일 확인 또는 작성자 본인
+        if user_email != 'nemonecoltd@gmail.com' and theme[0] != user_email:
+            raise HTTPException(status_code=403, detail="Not authorized")
+            
+        conn.execute(text("DELETE FROM themes WHERE id = :id"), {"id": theme_id})
+        conn.commit()
+        return {"status": "success"}
+
+@app.post("/themes/like/toggle")
+async def toggle_theme_like(req: ThemeLikeToggle):
+    """테마 좋아요 토글"""
+    with engine.connect() as conn:
+        conn.execute(
+            text("INSERT INTO users (email) VALUES (:email) ON CONFLICT (email) DO NOTHING"),
+            {"email": req.user_email}
+        )
+        existing = conn.execute(
+            text("SELECT id FROM theme_likes WHERE user_email = :email AND theme_id = :theme_id"),
+            {"email": req.user_email, "theme_id": req.theme_id}
+        ).fetchone()
+        if existing:
+            conn.execute(text("DELETE FROM theme_likes WHERE id = :id"), {"id": existing[0]})
+            liked = False
+        else:
+            conn.execute(
+                text("INSERT INTO theme_likes (user_email, theme_id) VALUES (:email, :theme_id)"),
+                {"email": req.user_email, "theme_id": req.theme_id}
             )
             liked = True
         conn.commit()

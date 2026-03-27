@@ -64,7 +64,8 @@ def generate_walking_tour(companion: str, context: str, region: str = "성수", 
 def get_embedding(text: str):
     """텍스트 벡터화 (최신 다국어 모델 사용)"""
     result = client.models.embed_content(
-        model="text-embedding-004",
-        contents=text
+        model="gemini-embedding-2-preview",
+        contents=text,
+        config=types.EmbedContentConfig(output_dimensionality=768)
     )
     return result.embeddings[0].values

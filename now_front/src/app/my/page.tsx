@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, MapPin, Route, Heart, ChevronRight, LogOut, Loader2, 
   Sparkles, Trash2, ChevronLeft, Map as MapIcon, List as ListIcon, X, Ticket, TrendingUp,
-  MessageSquare, Settings
+  MessageSquare, Settings, Library, Edit3, Plus, Save
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -17,18 +17,24 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-type Tab = 'course' | 'place';
+type Tab = 'theme' | 'course' | 'place';
 type Region = '성수' | '홍대';
 
 export default function MyPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>('course');
+  const [activeTab, setActiveTab] = useState<Tab>('theme'); // 테마가 첫 번째 탭
   const [region, setRegion] = useState<Region>('성수');
   const [likedPlaces, setLikedPlaces] = useState([]);
   const [savedCourses, setSavedCourses] = useState([]);
-  const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [userThemes, setUserThemes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Edit Mode State
+  const [editingTheme, setEditingTheme] = useState<any>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editPlaces, setEditPlaces] = useState<any[]>([]);
 
   useEffect(() => {
     if (session?.user?.email) {
@@ -39,33 +45,65 @@ export default function MyPage() {
   const fetchUserData = async () => {
     setIsLoading(true);
     try {
-      const [likesRes, coursesRes] = await Promise.all([
+      const [likesRes, coursesRes, themesRes] = await Promise.all([
         fetch(`/api-now/users/${session?.user?.email}/likes`),
-        fetch(`/api-now/users/${session?.user?.email}/courses`)
+        fetch(`/api-now/users/${session?.user?.email}/courses`),
+        fetch(`/api-now/users/${session?.user?.email}/themes`)
       ]);
       if (likesRes.ok) setLikedPlaces(await likesRes.json());
       if (coursesRes.ok) setSavedCourses(await coursesRes.json());
+      if (themesRes.ok) setUserThemes(await themesRes.json());
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 장소 필터링: 현재 선택된 지역만 표시
-  const filteredLikedPlaces = likedPlaces.filter((p: any) => p.region === region);
-
-  const handleDeleteLike = async (placeId: number) => {
-    if (!confirm('관심 장소에서 삭제하시겠습니까?')) return;
+  const handleDeleteTheme = async (themeId: number) => {
+    if (!confirm('테마를 정말 삭제하시겠습니까?')) return;
     try {
-      const res = await fetch('/api-now/likes/toggle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_email: session?.user?.email, place_id: placeId }),
-      });
+      const res = await fetch(`/api-now/themes/${themeId}?user_email=${session?.user?.email}`, { method: 'DELETE' });
       if (res.ok) {
-        setLikedPlaces(prev => prev.filter((p: any) => p.id !== placeId));
+        alert('삭제되었습니다.');
+        fetchUserData();
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const startEditTheme = (theme: any) => {
+    setEditingTheme(theme);
+    setEditTitle(theme.title);
+    setEditDesc(theme.description);
+    const parsedPlaces = typeof theme.places === 'string' ? JSON.parse(theme.places) : theme.places;
+    setEditPlaces(parsedPlaces);
+  };
+
+  const handleUpdateTheme = async () => {
+    if (!editTitle || !editDesc || editPlaces.length === 0) return alert('모든 필드를 입력해주세요.');
+    try {
+      const res = await fetch(`/api-now/themes/${editingTheme.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_email: session?.user?.email,
+          title: editTitle,
+          description: editDesc,
+          places: editPlaces
+        })
+      });
+
+      if (res.ok) {
+        alert('테마가 수정되었습니다.');
+        setEditingTheme(null);
+        fetchUserData();
+      } else {
+        const err = await res.json();
+        alert(`수정 실패: ${err.detail}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('서버 통신 중 오류가 발생했습니다.');
     }
   };
 
@@ -85,7 +123,6 @@ export default function MyPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 max-w-md mx-auto relative shadow-2xl pb-32 border-x border-zinc-200">
-      {/* Top Navigation Bar */}
       <header className="fixed top-0 left-0 right-0 max-w-md mx-auto bg-white/80 backdrop-blur-md z-50 border-b border-zinc-100 px-6 py-4 flex items-center gap-4">
         <button onClick={() => router.push('/')} className="p-2 hover:bg-zinc-100 rounded-full transition-colors">
           <ChevronLeft size={24} />
@@ -103,7 +140,6 @@ export default function MyPage() {
         </div>
       </header>
 
-      {/* Profile Section */}
       <div className="bg-white px-8 pt-24 pb-10 rounded-b-[40px] shadow-sm">
         <div className="flex items-center gap-6 mb-8">
           <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-emerald-50 shadow-lg flex-shrink-0">
@@ -118,68 +154,78 @@ export default function MyPage() {
           </Link>
         </div>
 
-        {/* Custom Tabs */}
         <div className="flex bg-zinc-100 p-1.5 rounded-2xl">
-          <button 
-            onClick={() => setActiveTab('course')}
-            className={cn("flex-1 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2", 
-              activeTab === 'course' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}
-          >
+          <button onClick={() => setActiveTab('theme')} className={cn("flex-1 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2", activeTab === 'theme' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
+            <Library size={16} /> 테마
+          </button>
+          <button onClick={() => setActiveTab('course')} className={cn("flex-1 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2", activeTab === 'course' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
             <Route size={16} /> 코스
           </button>
-          <button 
-            onClick={() => setActiveTab('place')}
-            className={cn("flex-1 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2", 
-              activeTab === 'place' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}
-          >
-            <Heart size={16} /> 플레이스
+          <button onClick={() => setActiveTab('place')} className={cn("flex-1 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2", activeTab === 'place' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
+            <Heart size={16} /> 찜
           </button>
         </div>
       </div>
 
-      {/* Tab Content */}
       <main className="p-6">
         <AnimatePresence mode="wait">
+          {activeTab === 'theme' && (
+            <motion.div key="theme" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+              {userThemes.length > 0 ? userThemes.map((theme: any) => {
+                const places = typeof theme.places === 'string' ? JSON.parse(theme.places) : theme.places;
+                const firstImage = places[0]?.image_url || `https://picsum.photos/seed/theme-${theme.id}/400/300`;
+                
+                return (
+                  <div key={theme.id} className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm space-y-4 relative group">
+                    <div className="flex gap-4">
+                      <img 
+                        src={firstImage} 
+                        className="w-16 h-16 rounded-2xl object-cover border border-zinc-50 bg-zinc-50" 
+                        alt="" 
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = `https://picsum.photos/seed/theme-error-${theme.id}/400/300`;
+                        }}
+                      />
+                      <div className="flex-1 min-w-0 pr-16">
+                        <h4 className="font-bold text-zinc-900 tracking-tight truncate">{theme.title}</h4>
+                        <p className="text-xs text-zinc-500 line-clamp-2 mt-1">{theme.description}</p>
+                      </div>
+                      <div className="flex gap-1 absolute top-6 right-6">
+                        <button onClick={() => startEditTheme(theme)} className="p-2 text-zinc-400 hover:text-emerald-500 bg-zinc-50 rounded-lg transition-colors"><Edit3 size={16} /></button>
+                        <button onClick={() => handleDeleteTheme(theme.id)} className="p-2 text-zinc-400 hover:text-rose-500 bg-zinc-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 pt-2 border-t border-zinc-50">
+                      <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-md uppercase">THEME</span>
+                      <span className="text-[10px] font-bold text-zinc-400 ml-auto">{new Date(theme.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="py-20 text-center space-y-4">
+                  <Library size={48} className="mx-auto text-zinc-200" />
+                  <p className="text-zinc-400 text-sm font-medium">아직 나만의 테마가 없습니다.</p>
+                  <Link href="/?tab=theme" className="inline-block px-8 py-3 bg-zinc-900 text-white rounded-2xl font-bold text-sm">테마 만들러 가기</Link>
+                </div>
+              )}
+            </motion.div>
+          )}
+
           {activeTab === 'course' && (
             <motion.div key="course" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-              {savedCourses.length > 0 ? (
-                savedCourses.map((course: any) => {
-                  const steps = Array.isArray(course.steps) ? course.steps : JSON.parse(course.steps);
-                  return (
-                    <div 
-                      key={course.id} 
-                      onClick={() => setSelectedCourse(course)}
-                      className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm space-y-3 relative group cursor-pointer hover:border-emerald-200 transition-all"
-                    >
-                      <h4 className="font-bold text-zinc-900 pr-8 tracking-tight">{course.title}</h4>
-                      <p className="text-xs text-zinc-500 line-clamp-1">{course.description}</p>
-                      <div className="flex items-center gap-3 pt-2">
-                        <span className={cn(
-                          "text-[10px] font-black px-2 py-1 rounded-md uppercase border",
-                          (course.region && course.region.includes('홍대'))
-                            ? "bg-orange-50 text-orange-600 border-orange-100" 
-                            : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                        )}>
-                          {(course.region && course.region.includes('홍대')) ? '홍대' : '성수'}
-                        </span>
-                        <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 px-2 py-1 rounded-md">
-                          {steps.length}개 경유
-                        </span>
-                        <span className="text-[10px] font-medium text-zinc-300 ml-auto">
-                          {new Date(course.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <ChevronRight className="absolute right-6 top-1/2 -translate-y-1/2 text-zinc-300 group-hover:text-emerald-500 transition-colors" />
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="py-20 text-center space-y-6">
-                  <div className="w-16 h-16 bg-zinc-100 rounded-2xl flex items-center justify-center mx-auto text-zinc-300">
-                    <Sparkles size={32} />
+              {savedCourses.length > 0 ? savedCourses.map((course: any) => (
+                <div key={course.id} className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm space-y-3 relative">
+                  <h4 className="font-bold text-zinc-900 tracking-tight">{course.title}</h4>
+                  <p className="text-xs text-zinc-500 line-clamp-1">{course.description}</p>
+                  <div className="flex items-center gap-2 pt-2 border-t border-zinc-50">
+                    <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md uppercase">AI COURSE</span>
+                    <span className="text-[10px] font-bold text-zinc-400 ml-auto">{new Date(course.created_at).toLocaleDateString()}</span>
                   </div>
-                  <p className="text-zinc-400 text-sm font-medium">아직 생성된 코스가 없습니다.</p>
-                  <Link href="/?tab=tour" className="inline-block px-8 py-3 bg-zinc-900 text-white rounded-2xl font-bold text-sm">AI 코스 만들러 가기</Link>
+                </div>
+              )) : (
+                <div className="py-20 text-center space-y-4">
+                  <Route size={48} className="mx-auto text-zinc-200" />
+                  <p className="text-zinc-400 text-sm font-medium">아직 저장된 코스가 없습니다.</p>
                 </div>
               )}
             </motion.div>
@@ -187,125 +233,77 @@ export default function MyPage() {
 
           {activeTab === 'place' && (
             <motion.div key="place" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-              {likedPlaces.length > 0 ? (
-                likedPlaces.map((place: any) => (
-                  <div key={place.id} className="bg-white p-5 rounded-3xl border border-zinc-100 shadow-sm flex gap-4 items-center group relative">
-                    <div className="relative flex-shrink-0">
-                      <img src={place.image_url || "https://picsum.photos/200"} className="w-16 h-16 rounded-2xl object-cover" alt="" />
-                      <div className="absolute -bottom-1 -right-1 shadow-lg">
-                        <span className={cn(
-                          "text-[8px] font-black px-1.5 py-0.5 rounded-md border",
-                          (place.region && place.region.includes('홍대'))
-                            ? "bg-orange-500 text-white border-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.5)]" 
-                            : "bg-emerald-500 text-white border-emerald-400"
-                        )}>
-                          {(place.region && place.region.includes('홍대')) ? '홍대' : '성수'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-zinc-900 truncate tracking-tight">{place.title}</h4>
-                      <p className="text-xs text-zinc-400 truncate">{place.location}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => handleDeleteLike(place.id)}
-                        className="p-2 text-rose-500 bg-rose-50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                      <Link href={`/posts/${place.id}`}>
-                        <div className="p-2 bg-zinc-50 rounded-xl text-zinc-300 group-hover:text-zinc-900">
-                          <ChevronRight size={20} />
-                        </div>
-                      </Link>
-                    </div>
+              {likedPlaces.length > 0 ? likedPlaces.map((place: any) => (
+                <div key={place.id} className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex gap-4 items-center relative">
+                  <img 
+                    src={place.image_url || `https://picsum.photos/seed/place-${place.id}/400/300`} 
+                    className="w-16 h-16 rounded-2xl object-cover border border-zinc-100 bg-white" 
+                    alt="" 
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = `https://picsum.photos/seed/place-error-${place.id}/400/300`;
+                    }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-zinc-900 text-sm truncate">{place.title}</h4>
+                    <p className="text-[10px] text-zinc-400 truncate">{place.location}</p>
                   </div>
-                ))
-              ) : (
-                <div className="py-20 text-center text-zinc-400 text-sm font-medium">좋아요한 장소가 없습니다.</div>
+                  <button onClick={() => router.push(`/posts/${place.id}`)} className="p-2 text-zinc-300 hover:text-emerald-500"><ChevronRight size={20} /></button>
+                </div>
+              )) : (
+                <div className="py-20 text-center space-y-4">
+                  <Heart size={48} className="mx-auto text-zinc-200" />
+                  <p className="text-zinc-400 text-sm font-medium">찜한 장소가 없습니다.</p>
+                </div>
               )}
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Global Footer */}
-        <footer className="mt-20 mb-32 px-2 flex items-center justify-between border-t border-zinc-100 pt-8">
-          <span className="text-[10px] font-bold text-zinc-400 tracking-tight">© 네모네 주식회사, 당신 시간의 알찬 소비</span>
-          <Link href="/feedback" className="flex items-center gap-1.5 text-[11px] font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition-colors shadow-sm">
-            피드백 <MessageSquare size={14} className="fill-emerald-100" />
-          </Link>
-        </footer>
       </main>
 
-      {/* Course Detail Modal */}
+      {/* Theme Edit Modal */}
       <AnimatePresence>
-        {selectedCourse && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end justify-center"
-            onClick={() => setSelectedCourse(null)}
-          >
-            <motion.div 
-              initial={{ y: "100%" }} 
-              animate={{ y: 0 }} 
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="w-full max-w-md bg-zinc-50 rounded-t-[40px] p-8 max-h-[85vh] overflow-y-auto no-scrollbar shadow-2xl"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h3 className="text-2xl font-black text-zinc-900 tracking-tight">{selectedCourse.title}</h3>
-                  <p className="text-zinc-500 text-sm mt-1">{selectedCourse.description}</p>
-                </div>
-                <button onClick={() => setSelectedCourse(null)} className="p-2 bg-zinc-200 rounded-full">
-                  <X size={20} />
-                </button>
+        {editingTheme && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-end justify-center">
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="w-full max-w-md bg-white rounded-t-[40px] p-8 max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl">
+              <div className="flex justify-between items-center mb-8">
+                <h3 className="text-xl font-black text-zinc-900 tracking-tight">테마 수정하기</h3>
+                <button onClick={() => setEditingTheme(null)} className="p-2 bg-zinc-100 rounded-full"><X size={20} /></button>
               </div>
 
-              <div className="relative space-y-8 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-zinc-200">
-                {(Array.isArray(selectedCourse.steps) ? selectedCourse.steps : JSON.parse(selectedCourse.steps)).map((step: any, idx: number) => (
-                  <div key={idx} className="relative pl-10">
-                    <div className="absolute left-0 top-1.5 w-6 h-6 rounded-full bg-white border-4 border-emerald-500 z-10" />
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-zinc-400 font-mono tracking-tighter">{step.time}</span>
-                        <span className="text-[10px] font-bold text-zinc-500 bg-zinc-200 px-2 py-0.5 rounded-md uppercase">{step.duration}분</span>
-                      </div>
-                      <div className="bg-white p-4 rounded-2xl border border-zinc-100 shadow-sm">
-                        <h4 className="font-bold text-zinc-900 text-sm tracking-tight">{step.place_name}</h4>
-                        <p className="text-[11px] text-zinc-500 leading-relaxed mt-1">{step.activity}</p>
-                      </div>
-                    </div>
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-2">제목</label>
+                  <input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-emerald-500" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-2">설명</label>
+                  <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-4 py-3 text-sm h-24 resize-none focus:outline-none focus:border-emerald-500" />
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-2">장소 리스트 ({editPlaces.length})</label>
+                    <button onClick={() => setEditPlaces([...editPlaces, { title: '', location: '', content: '', image_url: '' }])} className="text-[10px] bg-emerald-50 text-emerald-600 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1"><Plus size={12} /> 추가</button>
                   </div>
-                ))}
+                  {editPlaces.map((p, idx) => (
+                    <div key={idx} className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100 space-y-3 relative">
+                      <button onClick={() => setEditPlaces(editPlaces.filter((_, i) => i !== idx))} className="absolute top-4 right-4 text-zinc-300 hover:text-rose-500"><X size={16} /></button>
+                      <input placeholder="장소명" value={p.title} onChange={e => { const n = [...editPlaces]; n[idx] = { ...n[idx], title: e.target.value }; setEditPlaces(n); }} className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs font-bold" />
+                      <input placeholder="주소" value={p.location} onChange={e => { const n = [...editPlaces]; n[idx] = { ...n[idx], location: e.target.value }; setEditPlaces(n); }} className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs" />
+                      <textarea placeholder="설명" value={p.content} onChange={e => { const n = [...editPlaces]; n[idx] = { ...n[idx], content: e.target.value }; setEditPlaces(n); }} className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs h-16 resize-none" />
+                      <input placeholder="이미지 URL" value={p.image_url || ''} onChange={e => { const n = [...editPlaces]; n[idx] = { ...n[idx], image_url: e.target.value }; setEditPlaces(n); }} className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs" />
+                    </div>
+                  ))}
+                </div>
+
+                <button onClick={handleUpdateTheme} className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-xl hover:bg-emerald-600 transition-all">
+                  <Save size={20} /> 수정 내용 저장
+                </button>
               </div>
-              
-              <button onClick={() => setSelectedCourse(null)} className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold mt-10 shadow-lg">닫기</button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-xl border-t border-zinc-100 px-6 pt-4 pb-8 flex justify-between items-center z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-        <NavButton active={false} onClick={() => router.push('/')} icon={<TrendingUp size={22} />} label="랭킹" />
-        <NavButton active={false} onClick={() => router.push('/')} icon={<MapIcon size={22} />} label="지도" />
-        <NavButton active={false} onClick={() => router.push('/')} icon={<ListIcon size={22} />} label="리스트" />
-        <NavButton active={false} onClick={() => router.push('/')} icon={<Route size={22} />} label="AI 코스" />
-      </nav>
     </div>
-  );
-}
-
-function NavButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
-  return (
-    <button onClick={onClick} className={cn("flex flex-col items-center gap-1 transition-all", active ? "text-emerald-600" : "text-zinc-400")}>
-      <div className={cn("p-1 rounded-xl transition-all", active && "bg-emerald-50")}>{icon}</div>
-      <span className="text-[10px] font-bold uppercase tracking-widest">{label}</span>
-    </button>
   );
 }

@@ -13,14 +13,16 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-type Tab = 'course' | 'place';
+type Tab = 'course' | 'theme' | 'place';
 
 export default function Recommendation({ places: initialPlaces = [], lang = 'ko' }: { places?: any[], lang?: string }) {
   const { data: session } = useSession();
   const [activeTab, setActiveTab] = useState<Tab>('course');
   const [courses, setCourses] = useState([]);
+  const [themes, setThemes] = useState([]);
   const [places, setPlaces] = useState(initialPlaces);
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [selectedTheme, setSelectedTheme] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -30,6 +32,8 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
   useEffect(() => {
     if (activeTab === 'course') {
       fetchCourses();
+    } else if (activeTab === 'theme') {
+      fetchThemes();
     }
   }, [activeTab, lang]);
 
@@ -43,8 +47,19 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
     }
   };
 
+  const fetchThemes = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api-now/themes`);
+      if (res.ok) setThemes(await res.json());
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const fetchData = async () => {
     if (activeTab === 'course') fetchCourses();
+    if (activeTab === 'theme') fetchThemes();
   };
 
   const toggleCourseLike = async (e: React.MouseEvent, courseId: number) => {
@@ -56,6 +71,24 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_email: session.user?.email, course_id: courseId }),
+      });
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const toggleThemeLike = async (e: React.MouseEvent, themeId: number) => {
+    e.stopPropagation();
+    if (!session) return signIn();
+
+    try {
+      const res = await fetch('/api-now/themes/like/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_email: session.user?.email, theme_id: themeId }),
       });
       if (res.ok) {
         fetchData();
@@ -95,6 +128,9 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
         <div className="flex bg-zinc-200/50 p-1 rounded-2xl">
           <button onClick={() => setActiveTab('course')} className={cn("flex-1 py-2.5 rounded-xl text-xs font-bold transition-all", activeTab === 'course' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
             {lang === 'en' ? 'Courses' : '코스 랭킹'}
+          </button>
+          <button onClick={() => setActiveTab('theme')} className={cn("flex-1 py-2.5 rounded-xl text-xs font-bold transition-all", activeTab === 'theme' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
+            {lang === 'en' ? 'Themes' : '테마 랭킹'}
           </button>
           <button onClick={() => setActiveTab('place')} className={cn("flex-1 py-2.5 rounded-xl text-xs font-bold transition-all", activeTab === 'place' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
             {lang === 'en' ? 'Places' : '플레이스 랭킹'}
@@ -143,6 +179,50 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
                       </h4>
                       <p className="text-[11px] text-zinc-500 line-clamp-1">
                         {(lang === 'en' && course.description_en) ? course.description_en : course.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* AD SLOT: Between 3rd and 4th items */}
+                  {idx === 2 && (
+                    <AdUnit slotId="8058413094" />
+                  )}
+                </div>
+              ))}
+            </motion.div>
+          ) : activeTab === 'theme' ? (
+            <motion.div key="t" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              {themes.slice(0, 25).map((theme: any, idx: number) => (
+                <div key={theme.id}>
+                  <div onClick={() => setSelectedTheme(theme)} className="bg-white p-5 rounded-3xl border border-zinc-100 shadow-sm space-y-4 cursor-pointer hover:border-blue-200 transition-all group relative overflow-hidden mb-4">
+                    <div className="absolute -left-1 -top-1 w-8 h-8 bg-zinc-900 text-white text-[10px] font-black rounded-br-2xl flex items-center justify-center shadow-lg z-10">
+                      {idx + 1}
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-100 flex-shrink-0">
+                        <img src={theme.user_image || ""} className="w-full h-full object-cover" alt="" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-[10px] font-bold text-zinc-900 truncate">{theme.user_name}</p>
+                          <span className="text-[7px] font-black px-1.5 py-0.5 rounded uppercase border bg-blue-50 text-blue-600 border-blue-100">
+                            {lang === 'en' ? 'Theme' : '테마'}
+                          </span>
+                        </div>
+                      </div>
+                      <button onClick={(e) => toggleThemeLike(e, theme.id)} className="flex items-center gap-1.5 bg-zinc-50 px-3 py-1.5 rounded-full border border-zinc-100 hover:bg-rose-50 transition-all group/like">
+                        <Heart size={14} className="text-zinc-300 group-hover/like:text-rose-500 transition-colors" />
+                        <span className="text-[10px] font-black text-zinc-400 group-hover/like:text-rose-600">{theme.like_count}</span>
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-zinc-900 text-sm tracking-tight group-hover:text-blue-600 transition-colors">
+                        {theme.title}
+                      </h4>
+                      <p className="text-[11px] text-zinc-500 line-clamp-1">
+                        {theme.description}
                       </p>
                     </div>
                   </div>
@@ -241,6 +321,38 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
               >
                 <Save size={20} /> 이 코스 내 마이페이지로 퍼가기
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Theme Detail Modal */}
+      <AnimatePresence>
+        {selectedTheme && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end justify-center" onClick={() => setSelectedTheme(null)}>
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="w-full max-w-md bg-white rounded-t-[40px] p-8 max-h-[85vh] overflow-y-auto no-scrollbar shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-start mb-6">
+                <div className="flex items-center gap-3">
+                  <img src={selectedTheme.user_image} className="w-10 h-10 rounded-full border border-zinc-100" alt="" />
+                  <div>
+                    <h3 className="text-xl font-black text-zinc-900 tracking-tight">{selectedTheme.title}</h3>
+                    <p className="text-xs text-zinc-400 font-bold uppercase">{selectedTheme.user_name}의 테마</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedTheme(null)} className="p-2 bg-zinc-100 rounded-full"><X size={20} /></button>
+              </div>
+
+              <div className="space-y-4 mb-10">
+                {(Array.isArray(selectedTheme.places) ? selectedTheme.places : JSON.parse(selectedTheme.places)).map((place: any, idx: number) => (
+                  <div key={idx} className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100 flex gap-4">
+                    <img src={place.image_url || `https://picsum.photos/seed/${idx}/200`} className="w-16 h-16 rounded-2xl object-cover" alt="" />
+                    <div>
+                      <h4 className="font-bold text-zinc-900 text-sm">{place.title}</h4>
+                      <p className="text-[11px] text-zinc-500 mt-1 line-clamp-2">{place.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </motion.div>
           </motion.div>
         )}

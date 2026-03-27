@@ -13,12 +13,14 @@ import {
   Route as RouteIcon,
   MessageCircle,
   TrendingUp,
-  MessageSquare
+  MessageSquare,
+  Library
 } from 'lucide-react';
 import MapView from '@/components/MapView';
 import PlaceList from '@/components/PlaceList';
 import AskAI from '@/components/AskAI';
 import AITour from '@/components/AITour';
+import ThemeMenu from '@/components/ThemeMenu';
 import Recommendation from '@/components/Recommendation';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -27,7 +29,7 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-type Tab = 'rec' | 'map' | 'list' | 'tour' | 'chat';
+type Tab = 'rec' | 'map' | 'list' | 'theme' | 'tour' | 'chat';
 type Region = '성수' | '홍대' | '보넥도';
 type Lang = 'ko' | 'en';
 
@@ -40,6 +42,7 @@ const dict = {
     navRec: '랭킹',
     navMap: '지도',
     navList: '리스트',
+    navTheme: '테마',
     navTour: 'AI 코스',
     my: '마이',
     footer: '© 네모네 주식회사, 당신 시간의 알찬 소비',
@@ -53,6 +56,7 @@ const dict = {
     navRec: 'Ranking',
     navMap: 'Map',
     navList: 'List',
+    navTheme: 'Theme',
     navTour: 'AI Tour',
     my: 'My',
     footer: '© Nemone Co., Ltd. Make every moment count.',
@@ -211,6 +215,12 @@ export default function Home() {
             </motion.div>
           )}
 
+          {activeTab === 'theme' && (
+            <motion.div key="theme" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
+              <ThemeMenu lang={lang} />
+            </motion.div>
+          )}
+
           {activeTab === 'tour' && region !== '보넥도' && (
             <motion.div key="tour" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
               <AITour region={region} lang={lang} />
@@ -270,6 +280,12 @@ export default function Home() {
           onClick={() => setActiveTab('list')} 
           icon={<ListIcon size={22} />} 
           label={t.navList} 
+        />
+        <NavButton 
+          active={activeTab === 'theme'} 
+          onClick={() => setActiveTab('theme')} 
+          icon={<Library size={22} />} 
+          label={t.navTheme} 
         />
         <NavButton 
           active={activeTab === 'tour'} 
