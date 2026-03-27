@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Route, Heart, ChevronRight, User, Sparkles, X, Share2, Copy, Save } from 'lucide-react';
+import { Route, Heart, ChevronRight, User, Sparkles, X, Share2, Copy, Save, MapPin, Calendar, Video } from 'lucide-react';
 import { useSession, signIn } from 'next-auth/react';
 import Link from 'next/link';
 import { clsx, type ClassValue } from 'clsx';
@@ -23,6 +23,7 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
   const [places, setPlaces] = useState(initialPlaces);
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
   const [selectedTheme, setSelectedTheme] = useState<any>(null);
+  const [selectedPlace, setSelectedPlace] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -116,6 +117,29 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
       if (res.ok) {
         alert("내 마이페이지로 코스를 가져왔습니다!");
         setSelectedCourse(null);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleForkTheme = async (theme: any) => {
+    if (!session) return signIn();
+    
+    try {
+      const res = await fetch('/api-now/themes/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_email: session.user?.email,
+          title: `[퍼감] ${theme.title}`,
+          description: theme.description,
+          places: Array.isArray(theme.places) ? theme.places : JSON.parse(theme.places)
+        })
+      });
+      if (res.ok) {
+        alert("내 마이페이지로 테마를 가져왔습니다!");
+        setSelectedTheme(null);
       }
     } catch (e) {
       console.error(e);
@@ -344,14 +368,96 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
 
               <div className="space-y-4 mb-10">
                 {(Array.isArray(selectedTheme.places) ? selectedTheme.places : JSON.parse(selectedTheme.places)).map((place: any, idx: number) => (
-                  <div key={idx} className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100 flex gap-4">
-                    <img src={place.image_url || `https://picsum.photos/seed/${idx}/200`} className="w-16 h-16 rounded-2xl object-cover" alt="" />
-                    <div>
-                      <h4 className="font-bold text-zinc-900 text-sm">{place.title}</h4>
-                      <p className="text-[11px] text-zinc-500 mt-1 line-clamp-2">{place.content}</p>
+                  <div key={idx} onClick={() => setSelectedPlace(place)} className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100 flex gap-4 relative group cursor-pointer hover:border-emerald-200 transition-colors">
+                    <img 
+                      src={place.image_url || `https://picsum.photos/seed/theme-${selectedTheme.id}-${idx}/400/300`} 
+                      className="w-16 h-16 rounded-2xl object-cover border border-zinc-200 bg-white" 
+                      alt="" 
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://picsum.photos/seed/theme-error-${idx}/400/300`;
+                      }}
+                    />
+                    <div className="flex-1 min-w-0 pr-6">
+                      <h4 className="font-bold text-zinc-900 text-sm truncate group-hover:text-emerald-600 transition-colors">{place.title}</h4>
+                      <p className="text-[10px] text-zinc-400 mt-0.5 truncate">{place.location}</p>
+                      <p className="text-[11px] text-zinc-600 mt-2 line-clamp-2">{place.content}</p>
                     </div>
+                    <ChevronRight size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-300 group-hover:text-emerald-500 transition-colors" />
                   </div>
                 ))}
+              </div>
+
+              <button 
+                onClick={() => handleForkTheme(selectedTheme)}
+                className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-xl hover:bg-emerald-600 transition-all"
+              >
+                <Save size={20} /> 이 테마 내 마이페이지로 퍼가기
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Place Detail Nested Modal */}
+      <AnimatePresence>
+        {selectedPlace && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-end justify-center" onClick={() => setSelectedPlace(null)}>
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="w-full max-w-md bg-white rounded-t-[40px] p-8 max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-black text-zinc-900 tracking-tight pr-8">{selectedPlace.title}</h3>
+                <button onClick={() => setSelectedPlace(null)} className="p-2 bg-zinc-100 text-zinc-400 hover:text-zinc-600 rounded-full transition-colors flex-shrink-0"><X size={20} /></button>
+              </div>
+              
+              <div className="space-y-6 flex-grow">
+                <div className="w-full aspect-[4/3] rounded-3xl overflow-hidden bg-zinc-100 border border-zinc-200">
+                  <img 
+                    src={selectedPlace.image_url || `https://picsum.photos/seed/theme-${selectedPlace.title}/800/600`} 
+                    className="w-full h-full object-cover" 
+                    alt="" 
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = `https://picsum.photos/seed/theme-error-place/800/600`;
+                    }}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-start gap-2 text-sm text-emerald-600 font-bold bg-emerald-50 p-3 rounded-xl">
+                    <MapPin size={16} className="mt-0.5 flex-shrink-0" />
+                    <span>{selectedPlace.location || '위치 정보 없음'}</span>
+                  </div>
+                  {selectedPlace.date_range && (
+                    <div className="flex items-center gap-2 text-sm text-zinc-600 font-bold bg-zinc-50 p-3 rounded-xl border border-zinc-100">
+                      <Calendar size={16} className="text-zinc-400 flex-shrink-0" />
+                      <span>{selectedPlace.date_range}</span>
+                    </div>
+                  )}
+                  {selectedPlace.video_url && (
+                    <div className="flex items-center gap-2 text-sm text-zinc-600 font-bold bg-zinc-50 p-3 rounded-xl border border-zinc-100">
+                      <Video size={16} className="text-zinc-400 flex-shrink-0" />
+                      <a href={selectedPlace.video_url} target="_blank" rel="noopener noreferrer" className="hover:text-blue-500 hover:underline truncate">
+                        {selectedPlace.video_url}
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-zinc-50 p-6 rounded-3xl border border-zinc-100">
+                  <h4 className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-3">상세 설명 및 팁</h4>
+                  <p className="text-sm text-zinc-700 leading-relaxed whitespace-pre-wrap">{selectedPlace.content}</p>
+                </div>
+
+                {selectedPlace.location && (
+                  <div className="w-full aspect-video rounded-3xl overflow-hidden border border-zinc-200 bg-zinc-100 relative">
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      frameBorder="0"
+                      style={{ border: 0 }}
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(selectedPlace.location)}&z=16&output=embed`}
+                      allowFullScreen
+                    />
+                  </div>
+                )}
               </div>
             </motion.div>
           </motion.div>

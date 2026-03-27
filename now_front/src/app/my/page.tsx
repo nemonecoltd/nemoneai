@@ -28,6 +28,7 @@ export default function MyPage() {
   const [likedPlaces, setLikedPlaces] = useState([]);
   const [savedCourses, setSavedCourses] = useState([]);
   const [userThemes, setUserThemes] = useState([]);
+  const [selectedCourse, setSelectedCourse] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Edit Mode State
@@ -191,7 +192,9 @@ export default function MyPage() {
                         <p className="text-xs text-zinc-500 line-clamp-2 mt-1">{theme.description}</p>
                       </div>
                       <div className="flex gap-1 absolute top-6 right-6">
-                        <button onClick={() => startEditTheme(theme)} className="p-2 text-zinc-400 hover:text-emerald-500 bg-zinc-50 rounded-lg transition-colors"><Edit3 size={16} /></button>
+                        {!theme.title.startsWith('[퍼감]') && (
+                          <button onClick={() => startEditTheme(theme)} className="p-2 text-zinc-400 hover:text-emerald-500 bg-zinc-50 rounded-lg transition-colors"><Edit3 size={16} /></button>
+                        )}
                         <button onClick={() => handleDeleteTheme(theme.id)} className="p-2 text-zinc-400 hover:text-rose-500 bg-zinc-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
                       </div>
                     </div>
@@ -205,7 +208,7 @@ export default function MyPage() {
                 <div className="py-20 text-center space-y-4">
                   <Library size={48} className="mx-auto text-zinc-200" />
                   <p className="text-zinc-400 text-sm font-medium">아직 나만의 테마가 없습니다.</p>
-                  <Link href="/?tab=theme" className="inline-block px-8 py-3 bg-zinc-900 text-white rounded-2xl font-bold text-sm">테마 만들러 가기</Link>
+                  <Link href="/?tab=theme&action=create" className="inline-block px-8 py-3 bg-zinc-900 text-white rounded-2xl font-bold text-sm">테마 만들러 가기</Link>
                 </div>
               )}
             </motion.div>
@@ -214,7 +217,7 @@ export default function MyPage() {
           {activeTab === 'course' && (
             <motion.div key="course" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
               {savedCourses.length > 0 ? savedCourses.map((course: any) => (
-                <div key={course.id} className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm space-y-3 relative">
+                <div key={course.id} onClick={() => setSelectedCourse(course)} className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm space-y-3 relative cursor-pointer hover:border-emerald-200 transition-colors">
                   <h4 className="font-bold text-zinc-900 tracking-tight">{course.title}</h4>
                   <p className="text-xs text-zinc-500 line-clamp-1">{course.description}</p>
                   <div className="flex items-center gap-2 pt-2 border-t border-zinc-50">
@@ -283,7 +286,7 @@ export default function MyPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-2">장소 리스트 ({editPlaces.length})</label>
-                    <button onClick={() => setEditPlaces([...editPlaces, { title: '', location: '', content: '', image_url: '' }])} className="text-[10px] bg-emerald-50 text-emerald-600 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1"><Plus size={12} /> 추가</button>
+                    <button onClick={() => setEditPlaces([...editPlaces, { title: '', location: '', content: '', image_url: '', video_url: '', date_range: '' }])} className="text-[10px] bg-emerald-50 text-emerald-600 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1"><Plus size={12} /> 추가</button>
                   </div>
                   {editPlaces.map((p, idx) => (
                     <div key={idx} className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100 space-y-3 relative">
@@ -291,7 +294,9 @@ export default function MyPage() {
                       <input placeholder="장소명" value={p.title} onChange={e => { const n = [...editPlaces]; n[idx] = { ...n[idx], title: e.target.value }; setEditPlaces(n); }} className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs font-bold" />
                       <input placeholder="주소" value={p.location} onChange={e => { const n = [...editPlaces]; n[idx] = { ...n[idx], location: e.target.value }; setEditPlaces(n); }} className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs" />
                       <textarea placeholder="설명" value={p.content} onChange={e => { const n = [...editPlaces]; n[idx] = { ...n[idx], content: e.target.value }; setEditPlaces(n); }} className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs h-16 resize-none" />
+                      <input placeholder="운영 일시" value={p.date_range || ''} onChange={e => { const n = [...editPlaces]; n[idx] = { ...n[idx], date_range: e.target.value }; setEditPlaces(n); }} className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs" />
                       <input placeholder="이미지 URL" value={p.image_url || ''} onChange={e => { const n = [...editPlaces]; n[idx] = { ...n[idx], image_url: e.target.value }; setEditPlaces(n); }} className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs" />
+                      <input placeholder="영상 URL" value={p.video_url || ''} onChange={e => { const n = [...editPlaces]; n[idx] = { ...n[idx], video_url: e.target.value }; setEditPlaces(n); }} className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs" />
                     </div>
                   ))}
                 </div>
@@ -299,6 +304,41 @@ export default function MyPage() {
                 <button onClick={handleUpdateTheme} className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-xl hover:bg-emerald-600 transition-all">
                   <Save size={20} /> 수정 내용 저장
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Course Detail Modal */}
+      <AnimatePresence>
+        {selectedCourse && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end justify-center" onClick={() => setSelectedCourse(null)}>
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="w-full max-w-md bg-white rounded-t-[40px] p-8 max-h-[85vh] overflow-y-auto no-scrollbar shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-start mb-6">
+                <div className="flex items-center gap-3">
+                  <img src={session?.user?.image || "https://picsum.photos/200"} className="w-10 h-10 rounded-full border border-zinc-100 object-cover" alt="" />
+                  <div>
+                    <h3 className="text-xl font-black text-zinc-900 tracking-tight">{selectedCourse.title}</h3>
+                    <p className="text-xs text-zinc-400 font-bold uppercase">{session?.user?.name}의 코스</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedCourse(null)} className="p-2 bg-zinc-100 rounded-full"><X size={20} /></button>
+              </div>
+
+              <div className="relative space-y-8 mb-10 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-zinc-100">
+                {(Array.isArray(selectedCourse.steps) ? selectedCourse.steps : JSON.parse(selectedCourse.steps)).map((step: any, idx: number) => (
+                  <div key={idx} className="relative pl-10">
+                    <div className="absolute left-0 top-1.5 w-6 h-6 rounded-full bg-white border-4 border-emerald-500 z-10" />
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black text-zinc-400 font-mono uppercase">{step.time} • {step.duration}MIN</p>
+                      <div className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100">
+                        <h4 className="font-bold text-zinc-900 text-sm">{step.place_name}</h4>
+                        <p className="text-[11px] text-zinc-500 mt-1">{step.activity}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </motion.div>
           </motion.div>

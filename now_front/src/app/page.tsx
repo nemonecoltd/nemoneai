@@ -163,9 +163,9 @@ export default function Home() {
           </div>
         </div>
         
-        {/* Region Tabs: '추천' 탭에서는 숨김 (통합 운영) */}
+        {/* Region Tabs: '추천' 및 '테마' 탭에서는 숨김 (통합 운영) */}
         <AnimatePresence>
-          {activeTab !== 'rec' && (
+          {activeTab !== 'rec' && activeTab !== 'theme' && (
             <motion.div 
               initial={{ height: 0, opacity: 0 }} 
               animate={{ height: 'auto', opacity: 1 }} 

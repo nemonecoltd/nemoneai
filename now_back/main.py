@@ -393,6 +393,7 @@ async def get_all_themes():
         FROM themes t
         JOIN users u ON t.user_email = u.email
         LEFT JOIN theme_likes tl ON t.id = tl.theme_id
+        WHERE t.title NOT LIKE '[퍼감]%'
         GROUP BY t.id, u.name, u.image_url
         ORDER BY computed_like_count DESC, t.created_at DESC
     """)
