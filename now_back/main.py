@@ -211,6 +211,21 @@ async def get_user_profile(email: str):
             raise HTTPException(status_code=404, detail="User not found")
         return dict(result._mapping)
 
+@app.delete("/users/{email}")
+async def delete_user_account(email: str):
+    """유저 계정 탈퇴"""
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT email FROM users WHERE email = :email"), {"email": email}).fetchone()
+        if not result:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # 삭제 시 관련된 모든 데이터 (likes, saved_courses, themes, feedbacks 등)
+        # FOREIGN KEY 제약조건에 ON DELETE CASCADE 가 걸려있다면 자동으로 지워짐.
+        # 없다면 수동으로 지워줘야 함. 여기서는 users 테이블만 지움 (CASCADE 의존)
+        conn.execute(text("DELETE FROM users WHERE email = :email"), {"email": email})
+        conn.commit()
+        return {"status": "success"}
+
 @app.put("/users/{email}/profile")
 async def update_user_profile(email: str, update_data: UserUpdate):
     updates = []

@@ -267,6 +267,31 @@ export default function EditProfilePage() {
             <>저장하기 <Save size={18} /></>
           )}
         </button>
+
+        <div className="mt-12 text-center">
+          <button 
+            onClick={async () => {
+              if (confirm("정말 탈퇴하시겠습니까? 찜한 장소 및 코스 데이터가 모두 삭제되며 복구할 수 없습니다.")) {
+                try {
+                  const res = await fetch(`/api-now/users/${session?.user?.email}`, { method: 'DELETE' });
+                  if (res.ok) {
+                    alert("그동안 이용해주셔서 감사합니다.");
+                    // next-auth session kill and redirect
+                    const { signOut } = await import('next-auth/react');
+                    signOut({ callbackUrl: '/' });
+                  } else {
+                    alert("탈퇴 처리 중 오류가 발생했습니다.");
+                  }
+                } catch (e) {
+                  alert("오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+                }
+              }
+            }}
+            className="text-xs font-bold text-zinc-400 hover:text-rose-500 hover:underline transition-colors"
+          >
+            회원 탈퇴하기
+          </button>
+        </div>
       </main>
     </div>
   );

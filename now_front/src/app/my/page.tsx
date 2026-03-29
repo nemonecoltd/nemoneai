@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, MapPin, Route, Heart, ChevronRight, LogOut, Loader2, 
   Sparkles, Trash2, ChevronLeft, Map as MapIcon, List as ListIcon, X, Ticket, TrendingUp,
-  MessageSquare, Settings, Library, Edit3, Plus, Save
+  MessageSquare, Settings, Library, Edit3, Plus, Save, Calendar, Video
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -18,18 +18,20 @@ function cn(...inputs: ClassValue[]) {
 }
 
 type Tab = 'theme' | 'course' | 'place';
-type Region = '성수' | '홍대';
 
 export default function MyPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>('theme'); // 테마가 첫 번째 탭
-  const [region, setRegion] = useState<Region>('성수');
+  const [activeTab, setActiveTab] = useState<Tab>('theme');
   const [likedPlaces, setLikedPlaces] = useState([]);
   const [savedCourses, setSavedCourses] = useState([]);
   const [userThemes, setUserThemes] = useState([]);
-  const [selectedCourse, setSelectedCourse] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Modal States
+  const [selectedTheme, setSelectedTheme] = useState<any>(null);
+  const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [selectedPlace, setSelectedPlace] = useState<any>(null); // 재추가
 
   // Edit Mode State
   const [editingTheme, setEditingTheme] = useState<any>(null);
@@ -79,7 +81,7 @@ export default function MyPage() {
     const parsedPlaces = typeof theme.places === 'string' ? JSON.parse(theme.places) : theme.places;
     setEditPlaces(parsedPlaces);
   };
-
+  
   const handleUpdateTheme = async () => {
     if (!editTitle || !editDesc || editPlaces.length === 0) return alert('모든 필드를 입력해주세요.');
     try {
@@ -107,6 +109,7 @@ export default function MyPage() {
       alert('서버 통신 중 오류가 발생했습니다.');
     }
   };
+
 
   if (status === "loading") return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" /></div>;
   
@@ -144,7 +147,7 @@ export default function MyPage() {
       <div className="bg-white px-8 pt-24 pb-10 rounded-b-[40px] shadow-sm">
         <div className="flex items-center gap-6 mb-8">
           <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-emerald-50 shadow-lg flex-shrink-0">
-            <img src={session.user?.image || ""} alt={session.user?.name || ""} className="w-full h-full object-cover" />
+            <img src={session.user?.image || "https://picsum.photos/200"} alt={session.user?.name || ""} className="w-full h-full object-cover" />
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="text-2xl font-black tracking-tight truncate">{session.user?.name}</h2>
@@ -177,7 +180,7 @@ export default function MyPage() {
                 const firstImage = places[0]?.image_url || `https://picsum.photos/seed/theme-${theme.id}/400/300`;
                 
                 return (
-                  <div key={theme.id} className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm space-y-4 relative group">
+                  <div key={theme.id} onClick={() => setSelectedTheme(theme)} className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm space-y-4 relative group cursor-pointer hover:border-blue-200 transition-all">
                     <div className="flex gap-4">
                       <img 
                         src={firstImage} 
@@ -191,7 +194,7 @@ export default function MyPage() {
                         <h4 className="font-bold text-zinc-900 tracking-tight truncate">{theme.title}</h4>
                         <p className="text-xs text-zinc-500 line-clamp-2 mt-1">{theme.description}</p>
                       </div>
-                      <div className="flex gap-1 absolute top-6 right-6">
+                      <div className="flex gap-1 absolute top-6 right-6" onClick={e => e.stopPropagation()}>
                         {!theme.title.startsWith('[퍼감]') && (
                           <button onClick={() => startEditTheme(theme)} className="p-2 text-zinc-400 hover:text-emerald-500 bg-zinc-50 rounded-lg transition-colors"><Edit3 size={16} /></button>
                         )}
@@ -237,7 +240,7 @@ export default function MyPage() {
           {activeTab === 'place' && (
             <motion.div key="place" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
               {likedPlaces.length > 0 ? likedPlaces.map((place: any) => (
-                <div key={place.id} className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex gap-4 items-center relative">
+                <Link href={`/posts/${place.id}`} key={place.id} className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex gap-4 items-center relative no-underline group">
                   <img 
                     src={place.image_url || `https://picsum.photos/seed/place-${place.id}/400/300`} 
                     className="w-16 h-16 rounded-2xl object-cover border border-zinc-100 bg-white" 
@@ -247,11 +250,11 @@ export default function MyPage() {
                     }}
                   />
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-zinc-900 text-sm truncate">{place.title}</h4>
-                    <p className="text-[10px] text-zinc-400 truncate">{place.location}</p>
+                    <h4 className="font-bold text-zinc-900 text-sm truncate group-hover:text-emerald-600 transition-colors">{place.title}</h4>
+                    <p className="text-[10px] text-zinc-400 truncate mt-1">{place.location}</p>
                   </div>
-                  <button onClick={() => router.push(`/posts/${place.id}`)} className="p-2 text-zinc-300 hover:text-emerald-500"><ChevronRight size={20} /></button>
-                </div>
+                  <ChevronRight size={20} className="text-zinc-300 group-hover:text-emerald-500 transition-colors" />
+                </Link>
               )) : (
                 <div className="py-20 text-center space-y-4">
                   <Heart size={48} className="mx-auto text-zinc-200" />
@@ -310,6 +313,51 @@ export default function MyPage() {
         )}
       </AnimatePresence>
 
+      {/* Theme Detail Modal */}
+      <AnimatePresence>
+        {selectedTheme && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end justify-center" onClick={() => setSelectedTheme(null)}>
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="w-full max-w-md bg-white rounded-t-[40px] p-8 max-h-[85vh] overflow-y-auto no-scrollbar shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-start mb-6">
+                <div className="flex items-center gap-3">
+                  <img src={selectedTheme.user_image || "https://ui-avatars.com/api/?name=U&background=random"} className="w-10 h-10 rounded-full border border-zinc-100 object-cover bg-zinc-50" alt="" />
+                  <div>
+                    <h3 className="text-xl font-black text-zinc-900 tracking-tight">{selectedTheme.title}</h3>
+                    <p className="text-xs text-zinc-400 font-bold uppercase">{selectedTheme.user_name}의 테마</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setSelectedTheme(null)} className="p-2 bg-zinc-100 text-zinc-400 hover:text-zinc-600 rounded-full transition-colors"><X size={20} /></button>
+                </div>
+              </div>
+
+              <p className="text-sm text-zinc-600 mb-6 bg-zinc-50 p-4 rounded-xl">{selectedTheme.description}</p>
+
+              <div className="space-y-4 mb-10">
+                {(Array.isArray(selectedTheme.places) ? selectedTheme.places : JSON.parse(selectedTheme.places)).map((place: any, idx: number) => (
+                  <div key={idx} onClick={() => setSelectedPlace(place)} className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100 flex gap-4 relative group cursor-pointer hover:border-emerald-200 transition-colors">
+                    <img 
+                      src={place.image_url || `https://picsum.photos/seed/theme-${selectedTheme.id}-${idx}/400/300`} 
+                      className="w-16 h-16 rounded-2xl object-cover border border-zinc-200 bg-white" 
+                      alt="" 
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://picsum.photos/seed/theme-error-${idx}/400/300`;
+                      }}
+                    />
+                    <div className="flex-1 min-w-0 pr-6">
+                      <h4 className="font-bold text-zinc-900 text-sm truncate group-hover:text-emerald-600 transition-colors">{place.title}</h4>
+                      <p className="text-[10px] text-zinc-400 mt-0.5 truncate">{place.location}</p>
+                      <p className="text-[11px] text-zinc-600 mt-2 line-clamp-2">{place.content}</p>
+                    </div>
+                    <ChevronRight size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-300 group-hover:text-emerald-500 transition-colors" />
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Course Detail Modal */}
       <AnimatePresence>
         {selectedCourse && (
@@ -344,6 +392,73 @@ export default function MyPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Place Detail Nested Modal */}
+      <AnimatePresence>
+        {selectedPlace && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-end justify-center" onClick={() => setSelectedPlace(null)}>
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="w-full max-w-md bg-white rounded-t-[40px] p-8 max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-black text-zinc-900 tracking-tight pr-8">{selectedPlace.title}</h3>
+                <button onClick={() => setSelectedPlace(null)} className="p-2 bg-zinc-100 text-zinc-400 hover:text-zinc-600 rounded-full transition-colors flex-shrink-0"><X size={20} /></button>
+              </div>
+              
+              <div className="space-y-6 flex-grow">
+                <div className="w-full aspect-[4/3] rounded-3xl overflow-hidden bg-zinc-100 border border-zinc-200">
+                  <img 
+                    src={selectedPlace.image_url || `https://picsum.photos/seed/theme-${selectedPlace.title}/800/600`} 
+                    className="w-full h-full object-cover" 
+                    alt="" 
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = `https://picsum.photos/seed/theme-error-place/800/600`;
+                    }}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-start gap-2 text-sm text-emerald-600 font-bold bg-emerald-50 p-3 rounded-xl">
+                    <MapPin size={16} className="mt-0.5 flex-shrink-0" />
+                    <span>{selectedPlace.location || '위치 정보 없음'}</span>
+                  </div>
+                  {selectedPlace.date_range && (
+                    <div className="flex items-center gap-2 text-sm text-zinc-600 font-bold bg-zinc-50 p-3 rounded-xl border border-zinc-100">
+                      <Calendar size={16} className="text-zinc-400 flex-shrink-0" />
+                      <span>{selectedPlace.date_range}</span>
+                    </div>
+                  )}
+                  {selectedPlace.video_url && (
+                    <div className="flex items-center gap-2 text-sm text-zinc-600 font-bold bg-zinc-50 p-3 rounded-xl border border-zinc-100">
+                      <Video size={16} className="text-zinc-400 flex-shrink-0" />
+                      <a href={selectedPlace.video_url} target="_blank" rel="noopener noreferrer" className="hover:text-blue-500 hover:underline truncate">
+                        {selectedPlace.video_url}
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-zinc-50 p-6 rounded-3xl border border-zinc-100">
+                  <h4 className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-3">상세 설명 및 팁</h4>
+                  <p className="text-sm text-zinc-700 leading-relaxed whitespace-pre-wrap">{selectedPlace.content}</p>
+                </div>
+
+                {selectedPlace.location && (
+                  <div className="w-full aspect-video rounded-3xl overflow-hidden border border-zinc-200 bg-zinc-100 relative">
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      frameBorder="0"
+                      style={{ border: 0 }}
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(selectedPlace.location)}&z=16&output=embed`}
+                      allowFullScreen
+                    />
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

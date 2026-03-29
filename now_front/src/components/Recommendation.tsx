@@ -174,8 +174,12 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
                     </div>
                     
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-100 flex-shrink-0">
-                        <img src={course.user_image || ""} className="w-full h-full object-cover" alt="" />
+                      <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-100 flex-shrink-0 bg-zinc-50">
+                        <img 
+                          src={course.user_image || `https://ui-avatars.com/api/?name=${course.user_name || 'U'}&background=random`} 
+                          className="w-full h-full object-cover" 
+                          alt="" 
+                        />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
