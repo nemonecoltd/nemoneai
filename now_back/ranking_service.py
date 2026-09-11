@@ -56,7 +56,7 @@ def _popularity_rows(conn, interval_days: int, limit: int = 100, only_performanc
             region_clause += f" AND p.region = '{only_region}'"
     having_clause = f"HAVING COUNT(DISTINCT l.id) * 2 + COUNT(DISTINCT v.id) >= {min_score}" if min_score > 0 else ""
     return conn.execute(text(f"""
-        SELECT p.id, p.title, p.title_en, p.title_zh, p.title_ja, p.content, p.content_en, p.content_zh, p.content_ja, p.image_url, p.location, p.region, p.category, p.naver_place_id, p.updated_at, p.date_range, p.blog_reviews,
+        SELECT p.id, p.title, p.title_en, p.title_zh, p.title_ja, p.content, p.content_en, p.content_zh, p.content_ja, p.image_url, p.location, p.region, p.category, p.naver_place_id, p.updated_at, p.date_range, p.blog_reviews, p.mood_tags, p.category_tag,
                COUNT(DISTINCT l.id) AS like_count,
                COUNT(DISTINCT v.id) AS view_count,
                COUNT(DISTINCT l.id) * 2 + COUNT(DISTINCT v.id) AS score
@@ -71,7 +71,9 @@ def _popularity_rows(conn, interval_days: int, limit: int = 100, only_performanc
         LIMIT {limit}
     """))
 
-_MIN_RANKING_SCORE = 3  # 이 미만 점수(조회1~2건 수준)는 25위 안이라도 노출 안 함 — 신생 카테고리(축제 등) 0점 채우기 방지
+_MIN_RANKING_SCORE = 2  # 이 미만 점수는 25위 안이라도 노출 안 함 — 신생 카테고리(축제 등) 0점 채우기 방지.
+# 3이었을 때 종합 48시간 조건 통과가 21개(<25)라 아래 30일 폴백이 상시 발동해 랭킹이 안 바뀌는
+# 문제가 있었음(2026-09-07) — 2로 낮추면 39개로 25개를 넘겨 48시간 기준을 유지할 수 있음.
 
 def refresh_place_popularity(is_cron: bool = False):
     """장소 인기 랭킹 재계산 — 조회수(최근48시간, 부족시 30일 확장) + 좋아요*2. 하루 6회(한국시간 4시간 간격) 실행.
@@ -119,8 +121,10 @@ def refresh_place_popularity(is_cron: bool = False):
         result = list(_popularity_rows(conn, 2, min_score=_MIN_RANKING_SCORE))
         overall_interval_days = 2
         if len(result) < 25:
-            overall_interval_days = 30
-            result = list(_popularity_rows(conn, 30, min_score=_MIN_RANKING_SCORE))
+            # 30일까지 늘리면 자기강화 문제(애초에 48시간으로 좁힌 이유)가 되살아나 순위가
+            # 거의 안 바뀜(2026-09-07 확인) — 7일로만 완화해 최소한의 변동성은 유지.
+            overall_interval_days = 7
+            result = list(_popularity_rows(conn, 7, min_score=_MIN_RANKING_SCORE))
         _place_popularity_cache = [dict(row._mapping) for row in result]
 
         current_top25_ids = [item["id"] for item in _place_popularity_cache[:25]]
@@ -333,9 +337,61 @@ def refresh_place_popularity(is_cron: bool = False):
 
     _popularity_last_refreshed = datetime.now(timezone.utc).isoformat()
     refresh_closing_soon()  # 랭킹과 같은 주기(4시간)로 같이 갱신 — 랜덤 12개라 자주 바뀌어도 자연스러움
+    refresh_rising()  # 랭킹과 같은 주기(4시간)로 같이 갱신 — 급상승도 같은 데이터(likes/place_views) 기반
 
 
 _closing_soon_cache: list = []
+
+_rising_cache: list = []
+_MIN_RISING_PREV_SCORE = 3  # 직전 48시간 점수가 이 미만이면 후보에서 제외 — 실측 결과 2는 소수
+# 이벤트만으로 450%처럼 튀는 노이즈가 나왔고(2026-09-09), 3부터 27~33%대의 현실적인 증가율이 나옴.
+
+def refresh_rising():
+    """최근 48시간 점수 vs 그 직전 48시간(48~96시간 전) 점수를 비교해 증가율(%) 상위를 캐시.
+    새 테이블 없이 likes/place_views 원본 이벤트에 시간 구간만 다르게 걸어 한 쿼리로 계산—
+    refresh_place_popularity()의 _popularity_rows()와 같은 집계 대상(팝업만, 공연/축제/클래스 제외)."""
+    global _rising_cache
+    with engine.connect() as conn:
+        result = conn.execute(text("""
+            WITH recent AS (
+                SELECT p.id,
+                       COUNT(DISTINCT l.id) * 2 + COUNT(DISTINCT v.id) AS score
+                FROM seongsu_places p
+                LEFT JOIN likes l ON l.place_id = p.id AND l.created_at >= NOW() - INTERVAL '48 hours'
+                LEFT JOIN place_views v ON v.place_id = p.id AND v.viewed_at >= NOW() - INTERVAL '48 hours'
+                WHERE (p.end_date IS NULL OR p.end_date >= CURRENT_DATE)
+                  AND p.region != '공연' AND p.region != '축제'
+                  AND COALESCE(p.category, 'popup') = 'popup'
+                  AND COALESCE(p.naver_place_id, '') NOT LIKE 'kopis_%'
+                  AND COALESCE(p.naver_place_id, '') NOT LIKE 'jeju_%'
+                  AND COALESCE(p.naver_place_id, '') NOT LIKE 'culture_%'
+                GROUP BY p.id
+            ),
+            prev AS (
+                SELECT p.id,
+                       COUNT(DISTINCT l.id) * 2 + COUNT(DISTINCT v.id) AS score
+                FROM seongsu_places p
+                LEFT JOIN likes l ON l.place_id = p.id AND l.created_at >= NOW() - INTERVAL '96 hours' AND l.created_at < NOW() - INTERVAL '48 hours'
+                LEFT JOIN place_views v ON v.place_id = p.id AND v.viewed_at >= NOW() - INTERVAL '96 hours' AND v.viewed_at < NOW() - INTERVAL '48 hours'
+                WHERE (p.end_date IS NULL OR p.end_date >= CURRENT_DATE)
+                  AND p.region != '공연' AND p.region != '축제'
+                  AND COALESCE(p.category, 'popup') = 'popup'
+                  AND COALESCE(p.naver_place_id, '') NOT LIKE 'kopis_%'
+                  AND COALESCE(p.naver_place_id, '') NOT LIKE 'jeju_%'
+                  AND COALESCE(p.naver_place_id, '') NOT LIKE 'culture_%'
+                GROUP BY p.id
+            )
+            SELECT p.id, p.title, p.title_en, p.title_zh, p.title_ja, p.image_url, p.region, p.category, p.mood_tags, p.category_tag,
+                   recent.score AS recent_score, prev.score AS prev_score,
+                   ROUND((recent.score - prev.score) * 100.0 / prev.score)::int AS pct_change
+            FROM recent
+            JOIN prev ON prev.id = recent.id
+            JOIN seongsu_places p ON p.id = recent.id
+            WHERE prev.score >= :min_prev AND recent.score > prev.score
+            ORDER BY pct_change DESC
+            LIMIT 4
+        """), {"min_prev": _MIN_RISING_PREV_SCORE})
+        _rising_cache = [dict(row._mapping) for row in result]
 
 def refresh_closing_soon():
     """핫플 탭 상단 'NEW팝업' 전광판용 — refresh_place_popularity()와 같은 주기(4시간)로 갱신.
@@ -379,6 +435,9 @@ def get_exhibition() -> list:
 
 def get_closing_soon() -> list:
     return _closing_soon_cache
+
+def get_rising() -> list:
+    return _rising_cache
 
 def get_last_refreshed() -> Optional[str]:
     return _popularity_last_refreshed

@@ -90,7 +90,12 @@ def generate_mood_tags(row) -> list[str]:
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=contents,
-        config=types.GenerateContentConfig(response_mime_type="application/json"),
+        # thinking 기본값(꺼두지 않으면) 탓에 눈에 안 보이는 추론 토큰이 실제 출력의 3배 가까이
+        # 과금됨(2026-09-02 실측) — enrich_service.py의 동일 호출과 같이 꺼둔다.
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        ),
     )
     raw = (response.text or "").strip().replace("```json", "").replace("```", "").strip()
     return validate_tags(json.loads(raw).get("mood_tags"))

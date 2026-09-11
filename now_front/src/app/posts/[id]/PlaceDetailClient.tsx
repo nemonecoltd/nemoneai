@@ -5,22 +5,17 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ChevronLeft, ChevronRight, MapPin, Calendar, Clock, Share2, Globe, Video, Heart,
-  Users, Megaphone, Flame, Sparkles,
+  Users, Megaphone, Flame, Sparkles, TrendingUp,
 } from 'lucide-react';
 import { InArticleAd } from '@/components/AdUnit';
-import BrandTagline from '@/components/BrandTagline';
 import BottomNav from '@/components/BottomNav';
 import Logo from '@/components/Logo';
-import RecommendedCoursePromo from '@/components/RecommendedCoursePromo';
 import PwaInstallBanner from '@/components/PwaInstallBanner';
+import SideCardLayout, { WIDE_FRAME, WIDE_FRAME_BORDER, useElementHeight } from '@/components/sidecards/SideCardLayout';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/lib/utils';
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 const PLACE_REGIONS = ['성수', '홍대', '강북', '강남', '부산', '제주'] as const;
 const EVENT_REGIONS = ['공연', '축제'] as const;
@@ -54,6 +49,49 @@ const REGION_PILL_ACTIVE: Record<string, string> = {
   '공연': 'bg-emerald-500 text-white border-emerald-500',
   '축제': 'bg-amber-500 text-white border-amber-500',
 };
+// PACE PICK 박스(옛 "상세 정보") 배경색 — Recommendation.tsx의 지역 배지 색과 통일
+// (성수=emerald/홍대=orange/강북=yellow/강남=pink/공연=purple/부산=sky/제주=커스텀블루/축제=amber).
+// 지역이 없거나 매핑에 없으면 브랜드 기본색(pace)으로 폴백.
+const PACE_PICK_BOX: Record<string, string> = {
+  '성수': 'bg-emerald-50 border-emerald-100',
+  '홍대': 'bg-orange-50 border-orange-100',
+  '강북': 'bg-yellow-50 border-yellow-100',
+  '강남': 'bg-pink-50 border-pink-100',
+  '공연': 'bg-purple-50 border-purple-100',
+  '부산': 'bg-sky-50 border-sky-100',
+  '제주': 'bg-blue-50 border-blue-100',
+  '축제': 'bg-amber-50 border-amber-100',
+};
+const PACE_PICK_TEXT: Record<string, string> = {
+  '성수': 'text-emerald-600',
+  '홍대': 'text-orange-600',
+  '강북': 'text-yellow-700',
+  '강남': 'text-pink-600',
+  '공연': 'text-purple-600',
+  '부산': 'text-sky-600',
+  '제주': 'text-[#0369a1]',
+  '축제': 'text-amber-600',
+};
+// category_tag(패션/뷰티/캐릭터/애니웹툰/종합) 아이콘 — 상세정보 옆에 붙여 한눈에 성격을 알려준다.
+const CATEGORY_TAG_ICON: Record<string, string> = {
+  '패션': '👗', '뷰티': '💄', '캐릭터': '🧸', '애니웹툰': '🎬', '종합': '✨',
+};
+
+// 카테고리별 쿠팡 파트너스 한 줄 링크(2026-09-03) — 전시는 공연과 같은 링크를 쓴다.
+// 위 규칙에 안 걸리는 나머지(팝업/축제 등 기본)는 전부 "입장권" 링크로 폴백.
+function getCoupangLink(region?: string | null, category?: string | null): { label: string; url: string } {
+  if (region === '공연' || category === '전시') {
+    return { label: '서울공연', url: 'https://link.coupang.com/a/gKfc808DJY' };
+  }
+  if (category === 'shopping') {
+    return { label: '독립서점', url: 'https://link.coupang.com/a/gKfAIDqaCO' };
+  }
+  if (category === 'class') {
+    return { label: '원데이클래스', url: 'https://link.coupang.com/a/gKfnZ2Dkiq' };
+  }
+  return { label: '입장권', url: 'https://link.coupang.com/a/gKfkB7DDP2' };
+}
+
 // /ranking/place/[slug] 지역 허브 페이지(lib/regionPopularHub.tsx)와 슬러그를 맞춤 —
 // 값이 갈리면 여기서 만든 링크가 404로 빠진다.
 const REGION_HUB_SLUG: Record<string, string> = {
@@ -66,13 +104,14 @@ const REGION_HUB_LABEL: Record<string, (region: string) => string> = {
   zh: (r) => `查看更多${REGION_LABEL[r]?.zh ?? r}热门快闪店 →`,
   ja: (r) => `${REGION_LABEL[r]?.ja ?? r}の人気ポップアップをもっと見る →`,
 };
-const CATEGORY_ORDER = ['popup', 'class', 'shopping', '전시', '행사'] as const;
+const CATEGORY_ORDER = ['popup', 'class', 'shopping', '전시', '행사', '엔터'] as const;
 const CATEGORY_LABEL: Record<string, { en: string; zh: string; ja: string; ko: string }> = {
   popup: { en: 'Pop-up', zh: '快闪店', ja: 'ポップアップ', ko: '팝업' },
   class: { en: 'Class', zh: '体验课程', ja: '体験', ko: '클래스' },
   shopping: { en: 'Shopping', zh: '购物', ja: 'ショッピング', ko: '쇼핑' },
   '전시': { en: 'Exhibit', zh: '展览', ja: '展示', ko: '전시' },
   '행사': { en: 'Event', zh: '活动', ja: 'イベント', ko: '행사' },
+  '엔터': { en: 'Entertainment', zh: '娱乐', ja: 'エンタメ', ko: '엔터' },
 };
 
 export interface BlogReview {
@@ -107,20 +146,24 @@ export interface Place {
   hot_rank?: number | null;
   hot_rank_updated_at?: string | null;
   mood_tags?: string[] | null;
+  category_tag?: string | null;
 }
 
 interface Props {
   place: Place;
   lang: string;
   suggestions: Place[];
+  regionTop3: Place[];
 }
 
 const T = {
   ko: {
     prevPlace: '이전 장소', nextPlace: '다음 장소', spotlight: '핫플레이스 상세',
     hotVerified: '핫플인증', closingSoon: '마감임박', new: 'NEW', updatedAt: '기준',
-    duration: '운영 기간', openDaily: '상시 운영', status: '상태', active: '운영 중', ended: '운영 종료',
-    details: '상세 정보', moreToExplore: '이런 곳도 있어요', location: '위치 안내',
+    duration: '운영 기간', openDaily: '상시 운영', status: '상태', active: '운영 중', ended: '운영 종료', upcoming: '오픈 예정',
+    details: '상세 정보', pacePick: 'PACE PICK', pacePickHeadline: '지금 이곳을 주목해야 하는 이유',
+    regionPopular: '이 지역 인기장소', regionPopularSeeAll: '전체보기',
+    moreToExplore: '이런 곳도 있어요', location: '위치 안내',
     locationSyncing: '정확한 위치 정보 준비 중', watchVideo: '실시간 영상 보기', nowHere: 'NEMONE PACE',
     linkCopied: '링크가 복사되었습니다!',
     my: '마이',
@@ -129,8 +172,10 @@ const T = {
   en: {
     prevPlace: 'Previous place', nextPlace: 'Next place', spotlight: 'Hotplace Spotlight',
     hotVerified: 'Hot Pick', closingSoon: 'Closing Soon', new: 'NEW', updatedAt: 'as of',
-    duration: 'Duration', openDaily: 'Open Daily', status: 'Status', active: 'Active', ended: 'Ended',
-    details: 'Details', moreToExplore: 'More to explore', location: 'Location',
+    duration: 'Duration', openDaily: 'Open Daily', status: 'Status', active: 'Active', ended: 'Ended', upcoming: 'Opening Soon',
+    details: 'Details', pacePick: 'PACE PICK', pacePickHeadline: 'Why this place is worth your time',
+    regionPopular: 'Popular in this area', regionPopularSeeAll: 'See all',
+    moreToExplore: 'More to explore', location: 'Location',
     locationSyncing: 'Location Data Syncing', watchVideo: 'Watch Video', nowHere: 'NEMONE PACE',
     linkCopied: 'Link copied!',
     my: 'My',
@@ -139,8 +184,10 @@ const T = {
   zh: {
     prevPlace: '上一个地点', nextPlace: '下一个地点', spotlight: '热门地点详情',
     hotVerified: '认证热门', closingSoon: '即将结束', new: 'NEW', updatedAt: '更新于',
-    duration: '运营期间', openDaily: '全年营业', status: '状态', active: '营业中', ended: '已结束',
-    details: '详细信息', moreToExplore: '更多推荐', location: '位置信息',
+    duration: '运营期间', openDaily: '全年营业', status: '状态', active: '营业中', ended: '已结束', upcoming: '即将开始',
+    details: '详细信息', pacePick: 'PACE PICK', pacePickHeadline: '现在最值得关注的理由',
+    regionPopular: '本地区人气场所', regionPopularSeeAll: '查看全部',
+    moreToExplore: '更多推荐', location: '位置信息',
     locationSyncing: '位置信息准备中', watchVideo: '观看实时视频', nowHere: 'NEMONE PACE',
     linkCopied: '链接已复制！',
     my: '我的',
@@ -149,8 +196,10 @@ const T = {
   ja: {
     prevPlace: '前のスポット', nextPlace: '次のスポット', spotlight: 'ホットプレイス詳細',
     hotVerified: '人気認証', closingSoon: '終了間近', new: 'NEW', updatedAt: '基準',
-    duration: '運営期間', openDaily: '常時営業', status: 'ステータス', active: '営業中', ended: '終了',
-    details: '詳細情報', moreToExplore: 'こんな場所も', location: '位置案内',
+    duration: '運営期間', openDaily: '常時営業', status: 'ステータス', active: '営業中', ended: '終了', upcoming: 'オープン予定',
+    details: '詳細情報', pacePick: 'PACE PICK', pacePickHeadline: '今このスポットに注目すべき理由',
+    regionPopular: 'このエリアの人気スポット', regionPopularSeeAll: 'すべて見る',
+    moreToExplore: 'こんな場所も', location: '位置案内',
     locationSyncing: '位置情報を準備中', watchVideo: 'ライブ映像を見る', nowHere: 'NEMONE PACE',
     linkCopied: 'リンクをコピーしました！',
     my: 'マイ',
@@ -158,7 +207,7 @@ const T = {
   },
 } as const;
 
-export default function PlaceDetailClient({ place, lang: initialLang, suggestions }: Props) {
+export default function PlaceDetailClient({ place, lang: initialLang, suggestions, regionTop3 }: Props) {
   const router = useRouter();
   const { user, signInWithGoogle } = useAuth();
   const [navIndex, setNavIndex] = React.useState(0);
@@ -168,6 +217,7 @@ export default function PlaceDetailClient({ place, lang: initialLang, suggestion
   const t = T[(lang as keyof typeof T)] || T.ko;
   const [banner, setBanner] = React.useState<{ text: string; url: string } | null>(null);
   const [availableCategories, setAvailableCategories] = React.useState<string[]>([...CATEGORY_ORDER]);
+  const [headerRef, headerH] = useElementHeight<HTMLElement>(96);
 
   // 공유 root layout이 searchParam(?lang=)을 못 읽어 초기 HTML은 <html lang="ko"> 고정 —
   // 실제 콘텐츠 언어와 선언 언어가 어긋나지 않도록, 언어가 바뀌면 문서 lang 속성을 맞춤.
@@ -300,8 +350,12 @@ export default function PlaceDetailClient({ place, lang: initialLang, suggestion
   // 원데이클래스/체험은 상시 운영으로 취급해 종료 표기 대상에서 제외
   const isEnded = place.category !== 'class' && !!endDate && endDate < new Date().toISOString().split('T')[0];
 
-  // 마감임박(D-3 이내) — 종료된 곳/상시 클래스는 대상에서 제외
-  const daysUntilClose = (place.category !== 'class' && !!endDate && !isEnded)
+  // 시작일이 아직 안 된 경우(수동 등록 등) "운영 중"으로 잘못 표시되던 문제 수정(2026-09-02) —
+  // startDate는 이미 위에서 date_range 앞부분을 파싱해 계산해뒀음.
+  const isUpcoming = !isEnded && place.category !== 'class' && !!startDate && startDate > new Date().toISOString().split('T')[0];
+
+  // 마감임박(D-3 이내) — 종료된 곳/상시 클래스/아직 시작 전인 곳은 대상에서 제외
+  const daysUntilClose = (place.category !== 'class' && !!endDate && !isEnded && !isUpcoming)
     ? Math.ceil((new Date(endDate + 'T00:00:00Z').getTime() - new Date(new Date().toISOString().split('T')[0] + 'T00:00:00Z').getTime()) / 86400000)
     : null;
   const isClosingSoon = daysUntilClose !== null && daysUntilClose >= 0 && daysUntilClose <= 3;
@@ -327,6 +381,67 @@ export default function PlaceDetailClient({ place, lang: initialLang, suggestion
   const kakaoPlaceId = place.naver_place_id?.startsWith('kakao_') ? place.naver_place_id.slice('kakao_'.length) : null;
 
   const pageUrl = `https://now.nemoneai.com/posts/${place.id}`;
+  // 무드/카테고리 태그를 JSON-LD keywords로도 노출 — 리스크 없이 검색엔진에 주제 신호 보강
+  const seoKeywords = [place.category_tag, ...(place.mood_tags || [])].filter(Boolean).join(', ');
+
+  // FAQ(AEO 대응, 2026-09-11, fire-your-seo-agency 스킬 권고) — 실제 방문객이 검색할 법한
+  // 질문 중 "데이터로 확정되는 것만" 담는다(입장료는 JSON-LD상 전 항목 "0원"으로 하드코딩된
+  // 가정값이라 실제 유료 공연 등에서 틀릴 수 있어 FAQ에서 제외). 가시 텍스트와 JSON-LD가
+  // 반드시 글자까지 동일해야 해서, 이 배열 하나로 화면 렌더링과 구조화 데이터를 함께 만든다.
+  const statusLabel = isEnded ? t.ended : isUpcoming ? t.upcoming : t.active;
+  const validLocation = place.location && place.location !== '확인 필요' && place.location !== '전국' ? place.location : null;
+  const typeLabel = (place.region === '공연' || place.region === '축제')
+    ? (lang === 'ko' ? place.region : (REGION_LABEL[place.region]?.[lang as 'en' | 'zh' | 'ja'] ?? place.region))
+    : (() => {
+        const catKey = (place.category && CATEGORY_LABEL[place.category]) ? place.category : 'popup';
+        return lang === 'ko' ? CATEGORY_LABEL[catKey].ko : CATEGORY_LABEL[catKey][lang as 'en' | 'zh' | 'ja'];
+      })();
+  const regionNameLabel = place.region && place.region !== '공연' && place.region !== '축제'
+    ? (lang === 'ko' ? place.region : (REGION_LABEL[place.region]?.[lang as 'en' | 'zh' | 'ja'] ?? place.region))
+    : null;
+
+  const faqItems: { q: string; a: string }[] = [
+    {
+      q: lang === 'en' ? 'How long does it run?' : lang === 'zh' ? '运营期间是什么时候?' : lang === 'ja' ? '運営期間はいつまでですか?' : '운영 기간은 어떻게 되나요?',
+      a: displayDateRange
+        ? (lang === 'en' ? `It runs ${displayDateRange}, and is currently ${statusLabel}.`
+          : lang === 'zh' ? `运营期间为${displayDateRange},目前状态为${statusLabel}。`
+          : lang === 'ja' ? `運営期間は${displayDateRange}で、現在${statusLabel}です。`
+          : `운영 기간은 ${displayDateRange}이며, 현재 ${statusLabel} 상태입니다.`)
+        : (lang === 'en' ? "It's open year-round with no set end date."
+          : lang === 'zh' ? '常年营业,没有固定的结束日期。'
+          : lang === 'ja' ? '通年営業しており、特定の終了日はありません。'
+          : '상시 운영하는 곳으로, 별도의 운영 종료일이 없습니다.'),
+    },
+    ...(validLocation ? [{
+      q: lang === 'en' ? 'Where is it located?' : lang === 'zh' ? '地址在哪里?' : lang === 'ja' ? '場所はどこですか?' : '위치는 어디인가요?',
+      a: lang === 'en' ? `It's located at ${validLocation}.`
+        : lang === 'zh' ? `地址是${validLocation}。`
+        : lang === 'ja' ? `場所は${validLocation}です。`
+        : `위치는 ${validLocation}입니다.`,
+    }] : []),
+    {
+      q: lang === 'en' ? 'What kind of place is this?' : lang === 'zh' ? '这是什么类型的地方?' : lang === 'ja' ? 'どんな種類の場所ですか?' : '어떤 종류의 장소인가요?',
+      a: regionNameLabel
+        ? (lang === 'en' ? `It's a ${typeLabel} in ${regionNameLabel}.`
+          : lang === 'zh' ? `这是${regionNameLabel}地区的${typeLabel}。`
+          : lang === 'ja' ? `${regionNameLabel}エリアの${typeLabel}です。`
+          : `${regionNameLabel} 지역의 ${typeLabel}입니다.`)
+        : (lang === 'en' ? `It's a ${typeLabel}.`
+          : lang === 'zh' ? `这是${typeLabel}。`
+          : lang === 'ja' ? `${typeLabel}です。`
+          : `${typeLabel}입니다.`),
+    },
+  ];
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faqItems.map((item) => ({
+      "@type": "Question",
+      "name": item.q,
+      "acceptedAnswer": { "@type": "Answer", "text": item.a },
+    })),
+  };
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Event",
@@ -366,17 +481,22 @@ export default function PlaceDetailClient({ place, lang: initialLang, suggestion
       "availability": "https://schema.org/InStock",
       "validFrom": startDate
     },
+    ...(seoKeywords ? { keywords: seoKeywords } : {}),
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 max-w-md mx-auto relative shadow-2xl">
+    <div className={cn("min-h-screen bg-zinc-50 relative", WIDE_FRAME, WIDE_FRAME_BORDER)}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
 
       {/* GNB */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-zinc-100 px-5 pt-3 pb-1">
+      <header ref={headerRef} className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-zinc-100 px-5 pt-3 pb-1">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2 min-w-0">
             <button
@@ -419,8 +539,6 @@ export default function PlaceDetailClient({ place, lang: initialLang, suggestion
             )}
           </div>
         </div>
-
-        <BrandTagline lang={lang} />
 
         {/* 지역 탭 — 장소형(성수/홍대/강북/강남/제주) | 이벤트형(공연/축제) */}
         <div className="flex items-center gap-3 mb-1 overflow-x-auto no-scrollbar flex-nowrap">
@@ -503,6 +621,9 @@ export default function PlaceDetailClient({ place, lang: initialLang, suggestion
         )}
       </header>
 
+      {/* 이전/다음 화살표는 프레임이 아니라 '본문 열'에 붙어야 한다 — 카드 레이아웃의 중앙 열은
+          좌우 카드가 대칭이라 항상 화면 가운데 max-w-md 폭에 놓이므로, 여기도 max-w-md 유지.
+          (프레임 폭 xl:max-w-6xl로 넓히면 화살표가 사이드카드 위로 올라간다) */}
       {suggestions.length > 0 && (
         <div className="fixed inset-0 max-w-md mx-auto z-30 pointer-events-none">
           <button
@@ -522,6 +643,8 @@ export default function PlaceDetailClient({ place, lang: initialLang, suggestion
         </div>
       )}
 
+      <main>
+      <SideCardLayout headerH={headerH} lang={lang}>
       {/* Hero Image */}
       <div className="relative h-[45vh] overflow-hidden bg-zinc-200">
         <img
@@ -645,7 +768,7 @@ export default function PlaceDetailClient({ place, lang: initialLang, suggestion
           )}>
             <div className={cn(
               "w-10 h-10 rounded-xl flex items-center justify-center mb-3",
-              isEnded ? "bg-white/10 text-white" : "bg-blue-50 text-blue-600"
+              isEnded ? "bg-white/10 text-white" : isUpcoming ? "bg-amber-50 text-amber-600" : "bg-blue-50 text-blue-600"
             )}>
               <Clock size={20} />
             </div>
@@ -655,47 +778,67 @@ export default function PlaceDetailClient({ place, lang: initialLang, suggestion
             )}>
               {t.status}
             </p>
-            <p className={cn("text-xs font-bold", isEnded ? "text-white" : "text-zinc-900")}>
-              {isEnded ? t.ended : t.active}
+            <p className={cn("text-xs font-bold", isEnded ? "text-white" : isUpcoming ? "text-amber-600" : "text-zinc-900")}>
+              {isEnded ? t.ended : isUpcoming ? t.upcoming : t.active}
             </p>
           </div>
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-xl font-bold text-zinc-900 tracking-tight">
-            {t.details}
-          </h2>
           {(() => {
             const LABEL_RE = /^(기간|출연|러닝타임|관람연령|티켓가격|공연시간|기획|장소|주최|문의):\s*(.+)$/;
             const lines = displayContent.replace(/\|/g, '\n').split('\n').map(l => l.trim()).filter(l => l.length > 0);
             const sourceLine = lines.find(l => l.includes('출처'));
             const infoLines = lines.filter(l => LABEL_RE.test(l));
             const textLines = lines.filter(l => !LABEL_RE.test(l) && !l.includes('출처'));
+            // 상세 정보 박스 색 — 지역 대표색(REGION_ACCENT 등과 동일 팔레트)에 맞추고, 지역이
+            // 없는 경우(제주 이벤트 등 region 미표기)엔 브랜드 기본색(pace)으로 폴백(2026-09-06).
+            const pickBoxClass = (place.region && PACE_PICK_BOX[place.region]) || 'bg-pace-50 border-pace-100';
+            const pickTextClass = (place.region && PACE_PICK_TEXT[place.region]) || 'text-pace-600';
 
             return (
               <>
-                {textLines.length > 0 && (
-                  <div className="text-zinc-600 leading-relaxed text-sm font-medium space-y-2">
-                    {textLines.map((line, i) =>
-                      line.match(/map\.naver\.com/) ? null :
-                      line.match(/https?:\/\/\S+/) ? (
-                        <p key={i}>
-                          <a href={line.match(/https?:\/\/\S+/)![0]} target="_blank" rel="noopener noreferrer" className="text-pace-600 underline font-bold">
-                            바로가기: 링크 열기
-                          </a>
-                        </p>
-                      ) : line.length > 60 ? (
-                        // 축제 등 외부 API에서 온 긴 설명은 줄바꿈 없이 한 문단으로 뭉쳐 있어 가독성이 떨어져
-                        // 문장 단위(마침표/느낌표/물음표 뒤 공백)로 나눠 각각 별도 문단으로 표시
-                        line.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0).map((sentence, j) => (
-                          <p key={`${i}-${j}`}>{sentence.trim()}</p>
-                        ))
-                      ) : (
-                        <p key={i}>{line}</p>
-                      )
+                <div className={cn("rounded-3xl border p-5", pickBoxClass)}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={cn("inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-widest", pickTextClass)}>
+                      <Sparkles size={13} /> {t.pacePick}
+                    </span>
+                    {place.category_tag && CATEGORY_TAG_ICON[place.category_tag] && (
+                      <Link
+                        href={`/?category_tag=${encodeURIComponent(place.category_tag)}&lang=${lang}`}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-white/70 text-zinc-600 no-underline active:scale-95 transition-transform"
+                      >
+                        <span aria-hidden>{CATEGORY_TAG_ICON[place.category_tag]}</span>
+                        {place.category_tag}
+                      </Link>
                     )}
                   </div>
-                )}
+                  <h2 className="text-base font-bold text-zinc-900 tracking-tight mb-2">
+                    {t.pacePickHeadline}
+                  </h2>
+                  {textLines.length > 0 && (
+                    <div className="text-zinc-600 leading-relaxed text-sm font-medium space-y-2">
+                      {textLines.map((line, i) =>
+                        line.match(/map\.naver\.com/) ? null :
+                        line.match(/https?:\/\/\S+/) ? (
+                          <p key={i}>
+                            <a href={line.match(/https?:\/\/\S+/)![0]} target="_blank" rel="noopener noreferrer" className="text-pace-600 underline font-bold">
+                              바로가기: 링크 열기
+                            </a>
+                          </p>
+                        ) : line.length > 60 ? (
+                          // 축제 등 외부 API에서 온 긴 설명은 줄바꿈 없이 한 문단으로 뭉쳐 있어 가독성이 떨어져
+                          // 문장 단위(마침표/느낌표/물음표 뒤 공백)로 나눠 각각 별도 문단으로 표시
+                          line.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0).map((sentence, j) => (
+                            <p key={`${i}-${j}`}>{sentence.trim()}</p>
+                          ))
+                        ) : (
+                          <p key={i}>{line}</p>
+                        )
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {infoLines.length > 0 && (
                   <ul className="bg-white border border-zinc-100 rounded-2xl p-4 space-y-2.5">
@@ -813,7 +956,54 @@ export default function PlaceDetailClient({ place, lang: initialLang, suggestion
 
         <InArticleAd />
 
-        <RecommendedCoursePromo lang={lang} />
+        {/* "추천! 인기코스"(랜덤 코스/테마 홍보)를 "이 지역 인기장소"로 교체(2026-09-07) — 페이지
+            내 활동성 강화 목적. 무작위 추천(suggestions)과 달리 실제 인기 랭킹(/places/popular)
+            상위 3곳을 썸네일 카드로 보여주고, 전체보기는 이미 있는 지역 랭킹 허브 링크(아래
+            REGION_HUB_SLUG 링크)와 동일한 목적지로 보내 랭킹 쪽 유입을 늘린다. */}
+        {regionTop3.length > 0 && REGION_HUB_SLUG[place.region || ''] && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
+                <TrendingUp size={14} className="text-pace-500" />
+                {t.regionPopular}
+              </p>
+              <Link
+                href={`${LANG_PATH_PREFIX[lang] || ''}/ranking/place/${REGION_HUB_SLUG[place.region || '']}`}
+                className="text-[11px] font-bold text-pace-600 hover:text-pace-700 flex items-center gap-0.5 flex-shrink-0"
+              >
+                {t.regionPopularSeeAll} <ChevronRight size={12} />
+              </Link>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {regionTop3.map((p, idx) => {
+                const pTitle = (lang === 'en' && p.title_en) ? p.title_en
+                  : (lang === 'zh' && p.title_zh) ? p.title_zh
+                  : (lang === 'ja' && p.title_ja) ? p.title_ja
+                  : p.title;
+                return (
+                  <Link
+                    key={p.id}
+                    href={`/posts/${p.id}?region=${encodeURIComponent(p.region || place.region || '')}&lang=${lang}`}
+                    className="group block"
+                  >
+                    <div className="relative aspect-square rounded-2xl overflow-hidden bg-zinc-100">
+                      <img
+                        src={p.image_url}
+                        alt={pTitle}
+                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        referrerPolicy="no-referrer"
+                      />
+                      <span className="absolute top-2 left-2 w-5 h-5 rounded-full bg-zinc-900/80 text-white text-[10px] font-black flex items-center justify-center">
+                        {idx + 1}
+                      </span>
+                    </div>
+                    <p className="text-xs font-bold text-zinc-800 mt-2 line-clamp-2 leading-snug">{pTitle}</p>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {suggestions.length > 0 && (
           <div className="space-y-4">
@@ -849,6 +1039,29 @@ export default function PlaceDetailClient({ place, lang: initialLang, suggestion
             </div>
           </div>
         )}
+
+        {(() => {
+          const coupang = getCoupangLink(place.region, place.category);
+          return (
+            <div className="space-y-1.5">
+              <a
+                href={coupang.url}
+                target="_blank"
+                rel="noopener noreferrer nofollow sponsored"
+                className="flex items-center justify-between gap-2 px-4 py-3 rounded-2xl bg-zinc-50 border border-zinc-100 text-sm font-bold text-zinc-700 no-underline hover:border-pace-300 hover:text-pace-600 transition-colors"
+              >
+                <span>
+                  <span className="text-zinc-400 font-normal">관련상품추천 : </span>
+                  {coupang.label} 보러가기
+                </span>
+                <span aria-hidden>→</span>
+              </a>
+              <p className="text-[10px] text-zinc-400 px-1">
+                이 링크는 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
+              </p>
+            </div>
+          );
+        })()}
 
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-zinc-900 tracking-tight">
@@ -888,6 +1101,21 @@ export default function PlaceDetailClient({ place, lang: initialLang, suggestion
               </p>
             </div>
           )}
+        </div>
+
+        {/* FAQ(AEO) — 위 faqJsonLd와 문구를 정확히 공유(같은 faqItems 배열에서 생성) */}
+        <div className="space-y-3">
+          <h2 className="text-xl font-bold text-zinc-900 tracking-tight">
+            {lang === 'en' ? 'FAQ' : lang === 'zh' ? '常见问题' : lang === 'ja' ? 'よくある質問' : '자주 묻는 질문'}
+          </h2>
+          <div className="space-y-3">
+            {faqItems.map((item, i) => (
+              <div key={i} className="bg-white p-4 rounded-2xl border border-zinc-100">
+                <p className="text-sm font-bold text-zinc-900 mb-1.5">Q. {item.q}</p>
+                <p className="text-sm text-zinc-600 leading-relaxed">A. {item.a}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
         {place.video_url && (
@@ -943,8 +1171,10 @@ export default function PlaceDetailClient({ place, lang: initialLang, suggestion
           </nav>
         </footer>
       </div>
+      </SideCardLayout>
+      </main>
 
-      <BottomNav region={place.region || '성수'} lang={lang} isPerformanceRegion={isPerformanceRegion} />
+      <BottomNav region={place.region || '성수'} lang={lang} isPerformanceRegion={isPerformanceRegion} wide />
       <PwaInstallBanner show={showPwaNudge} dismissKey="pace_pwa_likes3" />
     </div>
   );

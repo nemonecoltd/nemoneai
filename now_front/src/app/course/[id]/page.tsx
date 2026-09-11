@@ -1,8 +1,11 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
-import BrandTagline from '@/components/BrandTagline';
 import BottomNav from '@/components/BottomNav';
+import SiteFooter from '@/components/SiteFooter';
+import SideCardLayout from '@/components/sidecards/SideCardLayout';
+import { WIDE_FRAME, WIDE_FRAME_BORDER } from '@/components/sidecards/frame';
+import { cn } from '@/lib/utils';
 import HeaderControls from '@/components/HeaderControls';
 import Logo from '@/components/Logo';
 import PwaInstallBanner from '@/components/PwaInstallBanner';
@@ -138,7 +141,7 @@ export default async function CourseDetailPage({ params, searchParams }: { param
   const times = course.scope === 'timed' ? formatStepTimes(course.steps) : [];
 
   return (
-    <div className="min-h-screen bg-zinc-50 max-w-md mx-auto relative shadow-2xl border-x border-zinc-200">
+    <div className={cn("min-h-screen bg-zinc-50 relative", WIDE_FRAME, WIDE_FRAME_BORDER)}>
       <header className="sticky top-0 bg-white/90 backdrop-blur-xl z-50 border-b border-zinc-100 px-6 pt-4 pb-1">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -150,10 +153,11 @@ export default async function CourseDetailPage({ params, searchParams }: { param
           <HeaderControls />
         </div>
         <h2 className="text-sm font-bold text-zinc-600 truncate mb-1">{course.title}</h2>
-        <BrandTagline lang={lang} />
       </header>
 
-      <main className="px-6 pt-6 pb-28 space-y-6">
+      <main>
+      <SideCardLayout lang={lang}>
+      <div className="px-6 pt-6 pb-28 space-y-6">
         <div className="space-y-2">
           <span className="text-[10px] font-black text-pace-600 bg-pace-50 px-2 py-1 rounded-md uppercase">
             {course.scope === 'timed' ? tr(lang, '3시간코스', '3-Hour Course', '3小时课程', '3時間コース') : tr(lang, '자유코스', 'Free Course', '自由课程', 'フリーコース')} · {course.region}
@@ -199,9 +203,12 @@ export default async function CourseDetailPage({ params, searchParams }: { param
           {tr(lang, '나만의 코스 만들러 가기', 'Create My Own Course', '去创建我的专属课程', '自分だけのコースを作る')}
         </Link>
         <PushSubscribeButton show={published === '1'} regionPref={course.region} />
+        <SiteFooter lang={lang} />
+      </div>
+      </SideCardLayout>
       </main>
 
-      <BottomNav region={course.region} lang={lang} />
+      <BottomNav region={course.region} lang={lang} wide />
       <PwaInstallBanner show={published === '1'} dismissKey="pace_pwa_course_publish" />
     </div>
   );

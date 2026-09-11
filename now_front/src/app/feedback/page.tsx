@@ -4,15 +4,11 @@ import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { ChevronLeft, MessageSquare, Trash2, Pencil, Send, ShieldCheck, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/lib/utils';
 import AdUnit from '@/components/AdUnit';
-import BrandTagline from '@/components/BrandTagline';
 import SiteFooter from '@/components/SiteFooter';
+import SideCardLayout, { WIDE_FRAME, WIDE_FRAME_BORDER, useElementHeight } from '@/components/sidecards/SideCardLayout';
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 const ADMIN_EMAIL = 'nemonecoltd@gmail.com';
 
@@ -29,6 +25,7 @@ function FeedbackPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const lang = searchParams.get('lang') || 'ko';
+  const [headerRef, headerH] = useElementHeight<HTMLElement>(96);
   const tr = (ko: string, en: string, zh: string, ja: string) =>
     lang === 'en' ? en : lang === 'zh' ? zh : lang === 'ja' ? ja : ko;
   const [feedbacks, setFeedbacks] = useState([]);
@@ -145,19 +142,20 @@ function FeedbackPageContent() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 max-w-md mx-auto relative shadow-2xl border-x border-zinc-200 flex flex-col pb-10">
+    <div className={cn("min-h-screen bg-zinc-50 relative flex flex-col pb-10", WIDE_FRAME, WIDE_FRAME_BORDER)}>
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-zinc-100 px-6 pt-4 pb-1 shadow-sm">
+      <header ref={headerRef} className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-zinc-100 px-6 pt-4 pb-1 shadow-sm">
         <div className="flex items-center gap-4">
           <button onClick={handleBack} className="p-2 hover:bg-zinc-100 rounded-full transition-colors">
             <ChevronLeft size={24} />
           </button>
           <h1 className="text-lg font-bold font-display tracking-tight text-zinc-900">{tr('사용자 피드백', 'User Feedback', '用户反馈', 'ユーザーフィードバック')}</h1>
         </div>
-        <BrandTagline />
       </header>
 
-      <main className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
+      <main className="flex-1">
+      <SideCardLayout headerH={headerH} bottomH={0} lang={lang}>
+      <div className="p-6 space-y-8">
         {/* Intro */}
         <div className="space-y-2">
           <h2 className="text-xl font-black text-zinc-900 flex items-center gap-2">
@@ -275,6 +273,8 @@ function FeedbackPageContent() {
         </div>
 
         <SiteFooter lang={lang} />
+      </div>
+      </SideCardLayout>
       </main>
     </div>
   );

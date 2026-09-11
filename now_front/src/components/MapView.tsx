@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
+import { placeHref } from '@/components/home/homeUtils';
 import { Calendar, Navigation, X, MapPin, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import CrowdCard from './CrowdCard';
@@ -277,7 +278,7 @@ export default function MapView({ places = [], region = '성수', lang = 'ko' }:
               )}
 
               <button
-                onClick={() => router.push(`/posts/${selectedPlace.id}?region=${encodeURIComponent(region)}&lang=${lang}`)}
+                onClick={() => router.push(placeHref(selectedPlace, lang))}
                 className="w-full py-3 rounded-2xl text-sm font-black text-white flex items-center justify-center gap-2"
                 style={{ backgroundColor: REGION_COLOR[region] || REGION_COLOR['성수'] }}
               >

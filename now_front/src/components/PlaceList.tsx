@@ -1,17 +1,14 @@
 "use client";
 
 import { motion } from 'framer-motion';
+import { placeHref } from '@/components/home/homeUtils';
 import { Clock, ChevronRight, ChevronDown, Heart, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import React, { useState, useEffect } from 'react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/lib/utils';
 import AdUnit from './AdUnit';
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 const PAGE_SIZE = 20;
 
@@ -226,7 +223,7 @@ export default function PlaceList({ places: initialPlaces, region, lang = 'ko', 
             </div>
 
             <div className="p-5 space-y-3">
-              <Link href={`/posts/${place.id}?region=${encodeURIComponent(region)}&lang=${lang}`} className="flex items-start justify-between gap-3 -m-1 p-1 rounded-xl hover:bg-zinc-50 transition-colors">
+              <Link href={placeHref(place, lang)} className="flex items-start justify-between gap-3 -m-1 p-1 rounded-xl hover:bg-zinc-50 transition-colors">
                 <div className="min-w-0">
                   <h3 className="text-lg font-bold text-zinc-900">
                     {(lang === 'en' && place.title_en) ? place.title_en : (lang === 'zh' && place.title_zh) ? place.title_zh : (lang === 'ja' && place.title_ja) ? place.title_ja : place.title}

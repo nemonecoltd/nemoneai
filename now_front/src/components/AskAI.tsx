@@ -1,17 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
+import { placeHref } from '@/components/home/homeUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Sparkles, User, Bot, Loader2, ChevronRight, BookmarkPlus, Check } from 'lucide-react';
 import Link from 'next/link';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/lib/utils';
 import StoreBanner from './StoreBanner';
 import { useAuth } from '@/context/AuthContext';
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 interface PlaceRef {
   id: number;
@@ -373,7 +370,7 @@ export default function AskAI({ region = '성수', lang = 'ko', fullHeight = fal
                   {msg.places.map((p) => (
                     <Link
                       key={p.id}
-                      href={`/posts/${p.id}?region=${encodeURIComponent(region)}&lang=${lang}`}
+                      href={placeHref(p, lang)}
                       className="flex items-center justify-between gap-2 bg-white border border-zinc-100 rounded-xl px-3 py-2 text-xs hover:border-pace-300 transition-colors"
                     >
                       <span className="min-w-0">

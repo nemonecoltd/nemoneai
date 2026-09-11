@@ -2,22 +2,21 @@
 
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ExternalLink, Share2, Users } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/lib/utils';
 import { InArticleAd } from '@/components/AdUnit';
-import BrandTagline from '@/components/BrandTagline';
 import BottomNav from '@/components/BottomNav';
+import SiteFooter from '@/components/SiteFooter';
 import Logo from '@/components/Logo';
 import { useAuth } from '@/context/AuthContext';
+import SideCardLayout, { WIDE_FRAME, WIDE_FRAME_BORDER, useElementHeight } from '@/components/sidecards/SideCardLayout';
 import type { MagazinePost } from './page';
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 export default function MagazineDetailClient({ post, lang = 'ko' }: { post: MagazinePost | null; lang?: string }) {
   const router = useRouter();
   const { user, signInWithGoogle } = useAuth();
+  const [headerRef, headerH] = useElementHeight<HTMLElement>(96);
+
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) router.back();
     else router.push('/');
@@ -53,11 +52,14 @@ export default function MagazineDetailClient({ post, lang = 'ko' }: { post: Maga
 
   const setLang = (l: string) => router.push(`/magazine/${post.id}?lang=${l}`);
 
+  // 카드가 있는 페이지는 상/하단바까지 포함해 홈(PACE SPA)과 같은 폭(xl:max-w-6xl)으로 넓어지고,
+  // 카드는 그 넓어진 프레임 '안', 본문(<main>) 안에서 기존 콘텐츠 양옆에 배치된다(2026-09-07,
+  // "카드만 바깥에 붙이는" 이전 방식은 상/하단바 폭이 그대로라 어색하다는 피드백으로 재작업).
   return (
-    <div className="min-h-screen bg-zinc-50 max-w-md mx-auto relative shadow-2xl">
-      {/* 사이트 전체 헤더(로고+GNB) — 다른 상세페이지(PlaceDetailClient)와 동일 패턴,
-          지역 탭만 여기선 의미가 없어 생략(2026-09-05, 매거진 리더에 원래 없던 걸 추가) */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-zinc-100 px-5 pt-3 pb-1">
+      <div className={cn("min-h-screen bg-zinc-50 relative", WIDE_FRAME, WIDE_FRAME_BORDER)}>
+        {/* 사이트 전체 헤더(로고+GNB) — 다른 상세페이지(PlaceDetailClient)와 동일 패턴,
+            지역 탭만 여기선 의미가 없어 생략(2026-09-05, 매거진 리더에 원래 없던 걸 추가) */}
+        <header ref={headerRef} className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-zinc-100 px-5 pt-3 pb-1">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2 min-w-0">
             <button
@@ -101,10 +103,11 @@ export default function MagazineDetailClient({ post, lang = 'ko' }: { post: Maga
             )}
           </div>
         </div>
-        <BrandTagline lang={lang} />
       </header>
 
-      <main className="pb-16">
+      <main>
+      <SideCardLayout headerH={headerH} lang={lang}>
+      <div className="pb-16">
         {post.image_url && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={post.image_url} alt={post.title} className="w-full aspect-[4/3] object-cover" />
@@ -135,9 +138,12 @@ export default function MagazineDetailClient({ post, lang = 'ko' }: { post: Maga
             </button>
           </div>
         </div>
+      </div>
+        <SiteFooter lang={lang} />
+      </SideCardLayout>
       </main>
 
-      <BottomNav lang={lang} />
+      <BottomNav lang={lang} wide />
     </div>
   );
 }

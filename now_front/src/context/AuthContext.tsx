@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     const authUrl = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:3002'
-    const currentUrl = window.location.origin
+    const currentUrl = window.location.href
     window.location.href = `${authUrl}/login?next=${encodeURIComponent(currentUrl)}`
   }
 
@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     const authUrl = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:3002'
-    const currentUrl = window.location.origin
+    const currentUrl = window.location.href
     window.location.href = `${authUrl}/login?provider=kakao&next=${encodeURIComponent(currentUrl)}`
   }
 
@@ -85,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     const authUrl = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:3002'
-    const currentUrl = window.location.origin
+    const currentUrl = window.location.href
     window.location.href = `${authUrl}/login?provider=naver&next=${encodeURIComponent(currentUrl)}`
   }
 
@@ -107,13 +107,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    // 로그아웃 후 통합인증센터로 강제 이동시키던 기존 로직 제거(2026-09-07) — .nemoneai.com
+    // 도메인 쿠키라 signOut() 호출만으로 전 서비스 세션이 이미 정리되고, 인증센터로 보낼
+    // 필요가 없는데도 보내서 "돌아올 방법이 없다"는 사용자 불만으로 이어졌음. 로그아웃은
+    // 그냥 현재 페이지에 머물러 로그아웃 상태 UI를 보여주면 된다.
     await supabaseRef.current?.auth.signOut()
-    if (!isProdDomain()) {
-      window.location.reload()
-      return
-    }
-    const authUrl = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:3002'
-    window.location.href = `${authUrl}/login?next=${encodeURIComponent(window.location.origin)}`
+    window.location.reload()
   }
 
   return (

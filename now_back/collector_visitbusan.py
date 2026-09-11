@@ -63,14 +63,12 @@ def upsert_visitbusan_items(detail_menu_cd: str, items: list[dict], region: str,
             content_zh = content_zh or content
 
             embedding = get_embedding(content)
-            image_url = rehost_image(item.get("thumb")) or ""
 
             params = {
                 "title": title, "title_en": title_en, "title_zh": title_zh, "title_ja": title_ja,
                 "content": content, "content_en": content_en, "content_zh": content_zh, "content_ja": content_ja,
                 "location": ko["info"].get("address", ""),
                 "naver_place_id": place_id,
-                "image_url": image_url,
                 "link_url": ko["info"].get("homepage") or None,
                 "embedding": f"[{','.join(map(str, embedding))}]",
                 "region": region,
@@ -78,10 +76,15 @@ def upsert_visitbusan_items(detail_menu_cd: str, items: list[dict], region: str,
             }
 
             with engine.connect() as conn:
-                existing_id = conn.execute(
-                    text("SELECT id FROM seongsu_places WHERE naver_place_id = :naver_place_id OR title = :title LIMIT 1"),
+                existing_row = conn.execute(
+                    text("SELECT id, image_url FROM seongsu_places WHERE naver_place_id = :naver_place_id OR title = :title LIMIT 1"),
                     {"naver_place_id": place_id, "title": title},
-                ).scalar()
+                ).fetchone()
+                existing_id = existing_row[0] if existing_row else None
+
+                # 재수집 때마다 rehost_image()가 매번 새 파일명으로 새로 업로드해 옛 이미지가
+                # 고아로 쌓이던 문제(2026-09) — 이미 이미지가 있는 기존 장소는 재rehost하지 않는다.
+                params["image_url"] = existing_row[1] if (existing_id and existing_row[1]) else (rehost_image(item.get("thumb")) or "")
 
                 if existing_id:
                     conn.execute(text("""

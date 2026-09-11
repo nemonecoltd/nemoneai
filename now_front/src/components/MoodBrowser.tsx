@@ -85,15 +85,15 @@ export default function MoodBrowser({ lang = 'ko', initialMood }: { lang?: strin
 
   return (
     <div className="space-y-5">
-      {/* 무드 선택 칩 — 개수가 많아 모바일에서 가로 스크롤. 태그만 깔끔하게, 위에 제목/설명
-          텍스트는 두지 않는다(2026-09-02). */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-6 px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* 무드 선택 칩 — 가로 스크롤이라 스크롤 힌트 없이는 9개 전체가 있는지 알 수 없다는
+          피드백(2026-09-06)으로 줄바꿈 방식으로 변경, 전체 태그가 한 번에 다 보이게 함. */}
+      <div className="flex flex-wrap gap-2">
         {MOOD_TAGS.map((m) => (
           <button
             key={m}
             type="button"
             onClick={() => setMood(m)}
-            className={`shrink-0 px-3.5 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors ${
+            className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors ${
               mood === m
                 ? 'bg-pace-600 text-white'
                 : 'bg-white text-zinc-500 border border-zinc-200 hover:border-pace-400 hover:text-pace-600'

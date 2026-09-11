@@ -3,12 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Sparkles } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/lib/utils';
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 interface ClosingSoonPlace {
   id: number;

@@ -324,7 +324,6 @@ def upsert_visitjeju_items(items: list[dict]) -> tuple[int, int, int]:
                 "latitude": item["latitude"],
                 "longitude": item["longitude"],
                 "naver_place_id": item["external_id"],
-                "image_url": rehost_image(item["image_url"]) or "",
                 "embedding": f"[{','.join(map(str, embedding))}]",
                 "region": "제주",
                 "category": item["category"],
@@ -333,10 +332,15 @@ def upsert_visitjeju_items(items: list[dict]) -> tuple[int, int, int]:
                 "link_title": item.get("link_title") or None,
             }
             with engine.connect() as conn:
-                existing_id = conn.execute(
-                    text("SELECT id FROM seongsu_places WHERE naver_place_id = :naver_place_id OR title = :title LIMIT 1"),
+                existing_row = conn.execute(
+                    text("SELECT id, image_url FROM seongsu_places WHERE naver_place_id = :naver_place_id OR title = :title LIMIT 1"),
                     {"naver_place_id": params["naver_place_id"], "title": params["title"]}
-                ).scalar()
+                ).fetchone()
+                existing_id = existing_row[0] if existing_row else None
+
+                # 재수집 때마다 rehost_image()가 매번 새 파일명으로 새로 업로드해 옛 이미지가
+                # 고아로 쌓이던 문제(2026-09) — 이미 이미지가 있는 기존 장소는 재rehost하지 않는다.
+                params["image_url"] = existing_row[1] if (existing_id and existing_row[1]) else (rehost_image(item["image_url"]) or "")
 
                 if existing_id:
                     conn.execute(text("""

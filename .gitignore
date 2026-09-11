@@ -11,3 +11,4 @@ tsconfig.tsbuildinfo
 credentials/
 *.credentials.json
 *-*-*-*-*.json
+nol_seen_titles.json

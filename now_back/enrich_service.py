@@ -163,6 +163,7 @@ async def _enrich_place_core(place_id: int) -> dict:
         from google.genai import types as _genai_types
 
         from mood_tags import prompt_block as _mood_prompt_block, validate_tags as _validate_mood_tags
+        from category_tags import prompt_block as _category_prompt_block, validate_category_tag as _validate_category_tag
 
         client = _genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
@@ -180,8 +181,9 @@ async def _enrich_place_core(place_id: int) -> dict:
             f"{road_block}\n\n"
             f"조건: 방문자 입장에서, 이모지 없이, 마크다운 기호 없이, 선택지/옵션 없이 소개 문구만 출력. "
             f"블로그 후기 제목이 있다면 그 분위기와 특징을 반드시 녹여낼 것."
-            f"{_mood_prompt_block()}\n\n"
-            f'다음 JSON 형식으로만 응답: {{"content": "소개 글", "mood_tags": ["태그1", "태그2"]}}'
+            f"{_mood_prompt_block()}"
+            f"{_category_prompt_block()}\n\n"
+            f'다음 JSON 형식으로만 응답: {{"content": "소개 글", "mood_tags": ["태그1", "태그2"], "category_tag": "카테고리"}}'
         )
 
         # 대표 이미지를 멀티모달 입력으로 — 블로그 "제목"만으로는 분위기 판단 근거가 얇아서
@@ -206,13 +208,21 @@ async def _enrich_place_core(place_id: int) -> dict:
         resp = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=contents,
-            config=_genai_types.GenerateContentConfig(response_mime_type="application/json"),
+            config=_genai_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                # 고정된 무드태그 목록 중 고르고 짧은 소개글 쓰는 단순 작업이라 다단계 추론이
+                # 필요 없는데, thinking을 꺼두지 않으면 눈에 안 보이는 "생각" 토큰이 실제 응답
+                # 토큰보다 훨씬 많이 과금됨(2026-09-02 실측: 출력 토큰의 74%가 thinking) — 꺼서
+                # 품질 손실 없이 비용만 줄인다.
+                thinking_config=_genai_types.ThinkingConfig(thinking_budget=0),
+            ),
         )
         raw = (resp.text or "").strip().replace("```json", "").replace("```", "").strip()
         parsed = json.loads(raw)
         generated = (parsed.get("content") or "").strip()[:600]
         generated = _limit_sentences(generated, 6)
         mood_tags = _validate_mood_tags(parsed.get("mood_tags"))
+        category_tag = _validate_category_tag(parsed.get("category_tag"))
     except Exception as e:
         raise RuntimeError(f"Gemini 생성 실패: {e}")
 
@@ -229,13 +239,14 @@ async def _enrich_place_core(place_id: int) -> dict:
         conn.execute(
             text(
                 "UPDATE seongsu_places SET content = :content, blog_reviews = :blog_reviews, "
-                "mood_tags = :mood_tags, updated_at = NOW() WHERE id = :id"
+                "mood_tags = :mood_tags, category_tag = :category_tag, updated_at = NOW() WHERE id = :id"
             ),
             {
                 "content": generated,
                 "blog_reviews": json.dumps(blog_reviews, ensure_ascii=False),
                 # 빈 배열도 그대로 저장 — NULL(생성 전)과 구분해야 백필이 같은 곳을 무한 재시도하지 않음
                 "mood_tags": mood_tags,
+                "category_tag": category_tag,
                 "id": place_id,
             }
         )
@@ -253,6 +264,7 @@ async def _enrich_place_core(place_id: int) -> dict:
         "has_road": bool(road_text),
         "mood_tags": mood_tags,
         "mood_tags_image_based": image_used,
+        "category_tag": category_tag,
     }
 
 

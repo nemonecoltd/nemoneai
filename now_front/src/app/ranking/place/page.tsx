@@ -1,10 +1,12 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Flame } from 'lucide-react';
-import BrandTagline from '@/components/BrandTagline';
 import Logo from '@/components/Logo';
 import BottomNav from '@/components/BottomNav';
 import SiteFooter from '@/components/SiteFooter';
+import SideCardLayout from '@/components/sidecards/SideCardLayout';
+import { WIDE_FRAME, WIDE_FRAME_BORDER } from '@/components/sidecards/frame';
+import { cn } from '@/lib/utils';
 import AdUnit from '@/components/AdUnit';
 
 const BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:8081';
@@ -62,7 +64,7 @@ export default async function PlaceRankingPage() {
   const places = await getPopularPlaces();
 
   return (
-    <div className="min-h-screen bg-zinc-50 max-w-md mx-auto relative shadow-2xl pb-28 border-x border-zinc-200">
+    <div className={cn("min-h-screen bg-zinc-50 relative pb-28", WIDE_FRAME, WIDE_FRAME_BORDER)}>
       <header className="sticky top-0 bg-white/90 backdrop-blur-xl z-50 border-b border-zinc-100 px-6 pt-4 pb-1">
         <div className="flex items-center gap-3">
           <Link href="/" className="p-2 -ml-2 hover:bg-zinc-100 rounded-full transition-colors text-zinc-600 flex-shrink-0">
@@ -76,10 +78,11 @@ export default async function PlaceRankingPage() {
           </div>
         </div>
         <h1 className="text-lg font-bold font-display tracking-tight text-zinc-900 mt-2">서울 팝업스토어 실시간 인기 순위</h1>
-        <BrandTagline />
       </header>
 
-      <main className="px-6 pt-6 space-y-3">
+      <main>
+      <SideCardLayout lang="ko">
+      <div className="px-6 pt-6 space-y-3">
         {/* 지역별 허브 — 크롤러가 지역별 랭킹 페이지를 발견하도록 내부링크 (URL은 영문 슬러그, 텍스트는 한글) */}
         <div className="flex flex-wrap gap-1.5 pb-2">
           {([
@@ -140,9 +143,11 @@ export default async function PlaceRankingPage() {
         </p>
 
         <SiteFooter lang="ko" />
+      </div>
+      </SideCardLayout>
       </main>
 
-      <BottomNav lang="ko" />
+      <BottomNav lang="ko" wide />
     </div>
   );
 }

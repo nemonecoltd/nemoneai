@@ -1,37 +1,19 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
+import { placeHref, placeCategoryTag } from '@/components/home/homeUtils';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Route, Heart, ChevronRight, User, X, Share2, Copy, Save, MapPin, Calendar, Video, Flame, Clock, Info } from 'lucide-react';
+import { Route, Heart, ChevronRight, User, X, Share2, Copy, Save, MapPin, Calendar, Video, Flame } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/lib/utils';
 import AdUnit from './AdUnit';
 import ClosingSoonTicker from './ClosingSoonTicker';
 import CrowdTicker from './CrowdTicker';
 import RankBadge from './RankBadge';
 import PushSubscribeBanner from './PushSubscribeBanner';
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-
-// 4위 이하 리스트 행의 순위 숫자 배지 — 예전엔 플랫 검정 사각형+숫자였는데 밋밋하다는 피드백(2026-08-11)으로
-// 그라데이션 + 진입 시 스프링 팝 애니메이션으로 교체. place/concert/festival/shopping/exhibition 5개 탭 공용.
-function RankNumberBadge({ rank }: { rank: number }) {
-  return (
-    <motion.div
-      initial={{ scale: 0, rotate: -12 }}
-      animate={{ scale: 1, rotate: 0 }}
-      transition={{ type: 'spring', stiffness: 420, damping: 16 }}
-      className="absolute -left-2 -top-2 w-6 h-6 rounded-lg flex items-center justify-center shadow-lg z-10 text-white text-[10px] font-black bg-gradient-to-br from-zinc-700 to-zinc-900 ring-1 ring-white/20"
-    >
-      {rank}
-    </motion.div>
-  );
-}
 
 // 장소 카드(리스트 행/bento 타일 공용)에 필요한 표시용 값 계산 — 톱3 bento와 4위 이하 리스트가
 // 동일한 지역배지/제목/부가텍스트 로직을 공유하도록 분리(2026-08-10, bento-grid 도입 시 추출)
@@ -68,7 +50,7 @@ function computePlaceMeta(place: any, lang: string) {
               : lang === 'ja'
                 ? `${place.region === '홍대' ? 'ホンデ' : place.region === '강북' ? 'カンブク' : place.region === '강남' ? 'カンナム' : place.region === '부산' ? '釜山' : place.region === '제주' ? '済州' : 'ソンス'}近く`
                 : `${place.region} 근처`);
-  const href = `/posts/${place.id}?region=${encodeURIComponent(place.region || '성수')}&lang=${lang}`;
+  const href = placeHref(place, lang);
   return { regionBadgeClass, regionLabel, placeTitle, secondaryText, href };
 }
 
@@ -79,6 +61,7 @@ interface BentoItem {
   image_url?: string;
   badgeClass: string;
   badgeLabel: string;
+  categoryTag?: string;
   title: string;
   secondaryText: string;
   score?: number;
@@ -88,13 +71,12 @@ interface BentoItem {
   href: string;
 }
 
-// 톱3 bento-grid — 1위는 세로로 긴 큰 타일(좌측), 2·3위는 우측에 작은 타일로 쌓임(Aceternity
-// bento-grid 패턴을 PACE 스타일로 직접 구현, 순수 CSS grid라 의존성 없음, 2026-08-10)
-function BentoTop3({ items, lang }: { items: BentoItem[]; lang: string }) {
-  if (items.length === 0) return null;
-  const [first, second, third] = items;
-
-  const SmallTile = ({ item, idx }: { item: BentoItem; idx: number }) => (
+// 랭킹 리스트의 카드 한 장(이미지+제목+점수) — 원래 톱3의 2·3위 전용(SmallTile)이었는데,
+// 4위부터는 훨씬 작은 이미지(w-16)+카드 모서리에 배지를 올리는 별도 스타일이라 "4위부터
+// 아이콘처럼 보인다"는 피드백(2026-09-10)을 받았다. 모든 순위가 이 카드 하나로 통일되도록
+// 모듈 스코프로 뺐다 — place/concert/festival/shopping/exhibition 5개 랭킹 탭이 전부 재사용.
+function RankTile({ item, idx }: { item: BentoItem; idx: number }) {
+  return (
     <Link href={item.href} className="flex bg-white rounded-3xl border border-zinc-100 shadow-sm overflow-hidden group relative">
       <div className="relative w-24 aspect-square flex-shrink-0 overflow-hidden bg-zinc-100">
         <img
@@ -114,7 +96,14 @@ function BentoTop3({ items, lang }: { items: BentoItem[]; lang: string }) {
         )}
       </div>
       <div className="flex-1 min-w-0 p-3 flex flex-col justify-center gap-1.5">
-        <span className={cn(item.badgeClass, "self-start")}>{item.badgeLabel}</span>
+        <div className="flex items-center gap-1 flex-wrap">
+          <span className={item.badgeClass}>{item.badgeLabel}</span>
+          {item.categoryTag && (
+            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md border bg-zinc-50 text-zinc-500 border-zinc-100">
+              {item.categoryTag}
+            </span>
+          )}
+        </div>
         <h4 className="text-xs font-bold text-zinc-900 tracking-tight leading-snug line-clamp-2">{item.title}</h4>
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="flex items-center gap-1 text-[9px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded-full">
@@ -126,6 +115,13 @@ function BentoTop3({ items, lang }: { items: BentoItem[]; lang: string }) {
       </div>
     </Link>
   );
+}
+
+// 톱3 bento-grid — 1위는 세로로 긴 큰 타일(좌측), 2·3위는 우측에 RankTile로 쌓임(Aceternity
+// bento-grid 패턴을 PACE 스타일로 직접 구현, 순수 CSS grid라 의존성 없음, 2026-08-10)
+function BentoTop3({ items, lang }: { items: BentoItem[]; lang: string }) {
+  if (items.length === 0) return null;
+  const [first, second, third] = items;
 
   return (
     <div className="grid grid-cols-2 gap-3 mb-4">
@@ -150,7 +146,14 @@ function BentoTop3({ items, lang }: { items: BentoItem[]; lang: string }) {
             </span>
           )}
           <div className="absolute inset-x-0 bottom-0 p-3 flex flex-col gap-1.5">
-            <span className={cn(first.badgeClass, "self-start")}>{first.badgeLabel}</span>
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className={first.badgeClass}>{first.badgeLabel}</span>
+              {first.categoryTag && (
+                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md border bg-white/10 text-white/80 border-white/20 backdrop-blur-sm">
+                  {first.categoryTag}
+                </span>
+              )}
+            </div>
             <h3 className="text-sm font-bold text-white tracking-tight leading-snug line-clamp-2">{first.title}</h3>
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="flex items-center gap-1 text-[10px] font-bold text-rose-300 bg-white/10 backdrop-blur-sm px-2 py-0.5 rounded-full">
@@ -162,18 +165,18 @@ function BentoTop3({ items, lang }: { items: BentoItem[]; lang: string }) {
           </div>
         </div>
       </Link>
-      {second && <SmallTile item={second} idx={1} />}
-      {third && <SmallTile item={third} idx={2} />}
+      {second && <RankTile item={second} idx={1} />}
+      {third && <RankTile item={third} idx={2} />}
     </div>
   );
 }
 
 function placeToBentoItem(place: any, lang: string): BentoItem {
   const { regionBadgeClass, regionLabel, placeTitle, secondaryText, href } = computePlaceMeta(place, lang);
-  return { id: place.id, image_url: place.image_url, badgeClass: regionBadgeClass, badgeLabel: regionLabel, title: placeTitle, secondaryText, score: place.score, like_count: place.like_count, isNew: place.is_new, rankDelta: place.rank_delta, href };
+  return { id: place.id, image_url: place.image_url, badgeClass: regionBadgeClass, badgeLabel: regionLabel, categoryTag: placeCategoryTag(place), title: placeTitle, secondaryText, score: place.score, like_count: place.like_count, isNew: place.is_new, rankDelta: place.rank_delta, href };
 }
 
-type Tab = 'course' | 'theme' | 'place' | 'concert' | 'festival' | 'shopping' | 'exhibition';
+export type Tab = 'course' | 'theme' | 'place' | 'concert' | 'festival' | 'shopping' | 'exhibition';
 const PLACE_RANKING_REGIONS = ['종합', '성수', '홍대', '강북', '강남', '부산', '제주'] as const;
 // 지역 전환 슬라이드 애니메이션 — custom(스와이프 방향)에 따라 진입/퇴장 방향이 반대가 됨
 const regionSlideVariants = {
@@ -181,23 +184,38 @@ const regionSlideVariants = {
   center: { x: 0, opacity: 1 },
   exit: (dir: 1 | -1) => ({ x: dir > 0 ? -40 : 40, opacity: 0 }),
 };
-type PlaceRankingRegion = typeof PLACE_RANKING_REGIONS[number];
-const AI_COURSE_REGIONS = ['성수', '홍대', '강북', '강남', '부산', '제주'] as const;
-type AiCourseRegion = typeof AI_COURSE_REGIONS[number];
-type Companion = 'solo' | 'couple' | 'friends';
-const COMPANION_LABEL: Record<Companion, string> = { solo: '혼자', couple: '연인', friends: '친구' };
+export type PlaceRankingRegion = typeof PLACE_RANKING_REGIONS[number];
 
-export default function Recommendation({ places: initialPlaces = [], lang = 'ko', openCourseSignal = 0, onNavigateToMap }: { places?: any[], lang?: string, openCourseSignal?: number, onNavigateToMap?: (region: string) => void }) {
-  const { user, session, signInWithGoogle } = useAuth();
+// 탭/지역 선택 상태는 HomeClient가 소유한다(2026-09-07) — 지도/장소처럼 헤더에 실제로 붙여
+// 스크롤해도 고정되게 하려면 헤더 쪽에서 버튼을 렌더링해야 하는데, 그러려면 이 컴포넌트는
+// 상태를 받기만 하는 controlled 컴포넌트여야 한다. 내부 로직(fetch, 공유 등)은 변수명이
+// 그대로라 전혀 안 건드려도 됨 — useState → props로 출처만 바뀜.
+export default function Recommendation({
+  places: initialPlaces = [],
+  lang = 'ko',
+  onNavigateToMap,
+  activeTab,
+  setActiveTab,
+  placeRegion,
+  setPlaceRegion,
+  refreshKey = 0,
+}: {
+  places?: any[];
+  lang?: string;
+  onNavigateToMap?: (region: string) => void;
+  activeTab: Tab;
+  setActiveTab: (t: Tab) => void;
+  placeRegion: PlaceRankingRegion;
+  setPlaceRegion: (r: PlaceRankingRegion) => void;
+  refreshKey?: number; // 당겨서 새로고침(HomeClient) — 탭/지역이 그대로여도 이 값이 바뀌면 재fetch
+}) {
+  const { user, signInWithGoogle } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>('place');
   const [courses, setCourses] = useState([]);
   const [topCourseImages, setTopCourseImages] = useState<string[]>([]); // 1위 코스 콜라주용 — steps에 썸네일이 없어 방문지 장소 이미지를 개별 조회
   const [themes, setThemes] = useState([]);
   const [places, setPlaces] = useState(initialPlaces);
-  const [placeRegion, setPlaceRegion] = useState<PlaceRankingRegion>('종합');
   const [placeSwipeDir, setPlaceSwipeDir] = useState<1 | -1>(1); // 지역 전환 슬라이드 방향(1=다음/왼쪽으로, -1=이전/오른쪽으로)
-  const placePillsRef = useRef<HTMLDivElement>(null);
   const [showPushNudge, setShowPushNudge] = useState(false);
   const pushTriggerRef = useRef<HTMLDivElement>(null);
   const [concerts, setConcerts] = useState([]);
@@ -208,22 +226,14 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
   const [selectedTheme, setSelectedTheme] = useState<any>(null);
   const [selectedPlace, setSelectedPlace] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showCourseModal, setShowCourseModal] = useState(false);
-  const [courseRegion, setCourseRegion] = useState<AiCourseRegion>('성수');
-  const [courseCompanion, setCourseCompanion] = useState<Companion>('solo');
-  const [isCreatingCourse, setIsCreatingCourse] = useState(false);
-  const [courseUsage, setCourseUsage] = useState({ usage_count: 0, limit: 2 });
 
   useEffect(() => {
     if (placeRegion === '종합') setPlaces(initialPlaces);
   }, [initialPlaces, placeRegion]);
 
   // 스와이프/탭으로 지역이 바뀔 때 활성 pill이 가로 스크롤 영역 밖에 있으면 안 보여서
-  // "스와이프가 뭘 바꿨는지" 체감이 안 됨 — 항상 활성 pill이 보이게 자동 스크롤.
-  useEffect(() => {
-    const el = placePillsRef.current?.querySelector<HTMLElement>(`[data-region="${placeRegion}"]`);
-    el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, [placeRegion]);
+  // "스와이프가 뭘 바꿨는지" 체감이 안 됨 — 지역 pill이 헤더로 이동(2026-09-07)하면서
+  // 이 자동 스크롤도 HomeClient.tsx로 같이 옮겼다.
 
   // 톱25 스크롤 절반 이상 지점(13번째 카드) 도달 시 푸시 구독 배너 노출 — 강제 팝업 대신
   // "이미 랭킹을 스크롤해서 볼 정도로 관심 보인" 시점에만 자연스럽게 제안
@@ -278,7 +288,7 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
     } else if (activeTab === 'place' && placeRegion !== '종합') {
       fetchPlacesByRegion(placeRegion);
     }
-  }, [activeTab, lang, placeRegion]);
+  }, [activeTab, lang, placeRegion, refreshKey]);
 
   const fetchPlacesByRegion = async (region: PlaceRankingRegion) => {
     if (region === '종합') {
@@ -414,61 +424,6 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
       }
     } catch (e) {
       console.error(e);
-    }
-  };
-
-  const openCourseModal = async () => {
-    setShowCourseModal(true);
-    if (!user) return;
-    try {
-      const res = await fetch(`/api-now/users/${user.id}/usage/itinerary`);
-      if (res.ok) setCourseUsage(await res.json());
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  // 상단 "AI코스생성" 버튼이 전체화면 공통 FAB(page.tsx)로 이동하면서, 다른 탭에서 눌러도
-  // 핫플 탭으로 전환된 뒤 이 모달이 열리도록 트리거 카운터를 신호로 받음(0은 최초 마운트라 무시)
-  const openCourseSignalRef = useRef(openCourseSignal);
-  useEffect(() => {
-    if (openCourseSignal !== openCourseSignalRef.current) {
-      openCourseSignalRef.current = openCourseSignal;
-      if (openCourseSignal > 0) openCourseModal();
-    }
-  }, [openCourseSignal]);
-
-  const createAiCourse = async () => {
-    if (!user) return signInWithGoogle();
-    setIsCreatingCourse(true);
-    try {
-      const res = await fetch(`/api-now/courses/draft?scope=timed&region=${encodeURIComponent(courseRegion)}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token || ''}`,
-        },
-        body: JSON.stringify({
-          user_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-          user_image: user.user_metadata?.avatar_url || null,
-          companion: courseCompanion,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setShowCourseModal(false);
-        router.push(`/course/${data.id}/edit`);
-      } else if (res.status === 403) {
-        const err = await res.json();
-        alert(err.detail || '오늘 제공된 3시간코스 생성 기회를 모두 사용하셨습니다.');
-      } else {
-        alert('코스를 만드는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('코스를 만드는 중 오류가 발생했습니다.');
-    } finally {
-      setIsCreatingCourse(false);
     }
   };
 
@@ -617,62 +572,14 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
 
   return (
     <div className="h-full flex flex-col bg-zinc-50">
-      <ClosingSoonTicker lang={lang} />
-      <CrowdTicker lang={lang} onNavigateToMap={onNavigateToMap} />
-      <div className="px-6 py-2.5">
-        <div className="flex gap-1 bg-zinc-200/50 p-1 rounded-2xl overflow-x-auto no-scrollbar">
-          <button onClick={() => setActiveTab('course')} className={cn("flex-shrink-0 px-3 py-2 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap", activeTab === 'course' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
-            {lang === 'en' ? '3-Hour' : lang === 'zh' ? '3小时' : lang === 'ja' ? '3時間' : '3시간'}
-          </button>
-          <button onClick={() => setActiveTab('theme')} className={cn("flex-shrink-0 px-3 py-2 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap", activeTab === 'theme' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
-            {lang === 'en' ? 'Themes' : lang === 'zh' ? '主题' : lang === 'ja' ? 'テーマ' : '테마'}
-          </button>
-          <button onClick={() => setActiveTab('place')} className={cn("flex-shrink-0 px-3 py-2 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap", activeTab === 'place' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
-            {lang === 'en' ? 'Pop-ups' : lang === 'zh' ? '快闪店' : lang === 'ja' ? 'ポップアップ' : '팝업'}
-          </button>
-          <button onClick={() => setActiveTab('shopping')} className={cn("flex-shrink-0 px-3 py-2 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap", activeTab === 'shopping' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
-            {lang === 'en' ? 'Shopping' : lang === 'zh' ? '购物' : lang === 'ja' ? 'ショッピング' : '쇼핑'}
-          </button>
-          <button onClick={() => setActiveTab('exhibition')} className={cn("flex-shrink-0 px-3 py-2 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap", activeTab === 'exhibition' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
-            {lang === 'en' ? 'Exhibits' : lang === 'zh' ? '展览' : lang === 'ja' ? '展示' : '전시'}
-          </button>
-          <button onClick={() => setActiveTab('concert')} className={cn("flex-shrink-0 px-3 py-2 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap", activeTab === 'concert' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
-            {lang === 'en' ? 'Concerts' : lang === 'zh' ? '演出' : lang === 'ja' ? '公演' : '공연'}
-          </button>
-          <button onClick={() => setActiveTab('festival')} className={cn("flex-shrink-0 px-3 py-2 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap", activeTab === 'festival' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")}>
-            {lang === 'en' ? 'Festivals' : lang === 'zh' ? '节庆' : lang === 'ja' ? '祭り' : '축제'}
-          </button>
-        </div>
-        {activeTab === 'place' && (
-          <div ref={placePillsRef} className="flex gap-1.5 mt-1.5 overflow-x-auto no-scrollbar">
-            {PLACE_RANKING_REGIONS.map((r) => (
-              <button
-                key={r}
-                data-region={r}
-                onClick={() => changeRegion(r)}
-                className={cn(
-                  "flex-shrink-0 px-3 py-1 rounded-full text-[10px] font-bold whitespace-nowrap transition-all border",
-                  placeRegion === r ? "bg-zinc-900 text-white border-zinc-900" : "bg-white text-zinc-400 border-zinc-200"
-                )}
-              >
-                {r === '종합'
-                  ? (lang === 'en' ? 'All' : lang === 'zh' ? '综合' : lang === 'ja' ? '総合' : '종합')
-                  : r === '홍대'
-                    ? (lang === 'en' ? 'Hongdae' : lang === 'zh' ? '弘大' : lang === 'ja' ? 'ホンデ' : '홍대')
-                    : r === '강북'
-                      ? (lang === 'en' ? 'Gangbuk' : lang === 'zh' ? '江北' : lang === 'ja' ? 'カンブク' : '강북')
-                      : r === '강남'
-                        ? (lang === 'en' ? 'Gangnam' : lang === 'zh' ? '江南' : lang === 'ja' ? 'カンナム' : '강남')
-                        : r === '부산'
-                          ? (lang === 'en' ? 'Busan' : lang === 'zh' ? '釜山' : lang === 'ja' ? '釜山' : '부산')
-                          : r === '제주'
-                            ? (lang === 'en' ? 'Jeju' : lang === 'zh' ? '济州' : lang === 'ja' ? '済州' : '제주')
-                            : (lang === 'en' ? 'Seongsu' : lang === 'zh' ? '圣水洞' : lang === 'ja' ? 'ソンス' : '성수')}
-              </button>
-            ))}
-          </div>
-        )}
+      {/* PC(xl+)에서는 같은 정보를 사이드 카드(팝업 NEW/마감임박, 혼잡도)가 이미 보여주므로
+          중복 노출을 막기 위해 숨김(2026-09-07) — 사이드 카드가 없는 모바일/태블릿에서는 그대로 유지. */}
+      <div className="xl:hidden">
+        <ClosingSoonTicker lang={lang} />
+        <CrowdTicker lang={lang} onNavigateToMap={onNavigateToMap} />
       </div>
+      {/* 탭/지역 선택 UI는 HomeClient.tsx의 <header>로 이동(2026-09-07) — 지도/장소처럼
+          스크롤해도 고정되게 하기 위함. */}
 
       <div className="flex-1 overflow-y-auto px-6 pb-24 no-scrollbar">
         <AnimatePresence mode="wait">
@@ -837,47 +744,13 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
               )}
               {places.slice(3, 25).map((place: any, i: number) => {
                 const idx = i + 3; // 절대 순위(0-base) 유지 — 광고 트리거·bottom-nudge ref 위치 계산용
-                const { regionBadgeClass, regionLabel, placeTitle, secondaryText, href } = computePlaceMeta(place, lang);
+                const item = placeToBentoItem(place, lang);
 
                 return (
-                <div key={place.id} ref={idx === 12 ? pushTriggerRef : undefined}>
-                    <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex gap-4 items-center relative group mb-4">
-                      <RankNumberBadge rank={idx + 1} />
-                      <div className="relative flex-shrink-0">
-                        <img src={place.image_url || `https://picsum.photos/seed/${place.id}/200`} className="w-16 h-16 rounded-2xl object-cover border border-zinc-50" alt={placeTitle || ''} referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLImageElement).src = `https://picsum.photos/seed/rank-${place.id}/200`; }} />
-                        <div className="absolute -bottom-1 -right-1 shadow-lg">
-                          <span className={regionBadgeClass}>{regionLabel}</span>
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="font-bold text-zinc-900 text-sm truncate tracking-tight">{placeTitle}</h4>
-                          {place.category === 'class' && (
-                            <span className="flex-shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded uppercase border bg-indigo-50 text-indigo-600 border-indigo-100">
-                              {lang === 'en' ? 'Class' : lang === 'zh' ? '体验课' : lang === 'ja' ? 'クラス' : '클래스'}
-                            </span>
-                          )}
-                          {place.is_new && (
-                            <span className="flex-shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded uppercase border bg-rose-500 text-white border-rose-400 animate-pulse">
-                              NEW
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="flex items-center gap-1 text-[9px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">
-                            <Flame size={10} fill="currentColor" /> {place.score ?? place.like_count}
-                          </span>
-                          <RankBadge rankDelta={place.rank_delta} />
-                          <span className="text-[9px] text-zinc-400 font-medium truncate">{secondaryText}</span>
-                        </div>
-                      </div>
-                      <Link href={href} className="p-2 bg-zinc-50 rounded-xl text-zinc-300 group-hover:bg-pace-50 group-hover:text-pace-500 transition-all">
-                        <ChevronRight size={18} />
-                      </Link>
-                    </div>
-
+                <div key={place.id} ref={idx === 12 ? pushTriggerRef : undefined} className="mb-4">
+                  <RankTile item={item} idx={idx} />
                   {idx === 14 && (
-                    <AdUnit slotId="5769413560" layoutKey="-hp+7-l-2n+6x" />
+                    <div className="mt-4"><AdUnit slotId="5769413560" layoutKey="-hp+7-l-2n+6x" /></div>
                   )}
                 </div>
                 );
@@ -908,7 +781,7 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
                   score: place.score,
                   like_count: place.like_count,
                   isNew: place.is_new,
-                  href: `/posts/${place.id}?region=공연&lang=${lang}`,
+                  href: placeHref(place, lang),
                 });
                 return (
                   <>
@@ -918,38 +791,12 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
                       const idx = i + 3;
                       const item = toItem(place);
                       return (
-                        <div key={place.id}>
-                    <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex gap-4 items-center relative group mb-4">
-                      <RankNumberBadge rank={idx + 1} />
-                      <div className="relative flex-shrink-0">
-                        <img src={item.image_url || `https://picsum.photos/seed/${item.id}/200`} className="w-16 h-16 rounded-2xl object-cover border border-zinc-50" alt={item.title || ''} referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLImageElement).src = `https://picsum.photos/seed/rank-${item.id}/200`; }} />
-                        <div className="absolute -bottom-1 -right-1 shadow-lg">
-                          <span className={item.badgeClass}>{item.badgeLabel}</span>
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="font-bold text-zinc-900 text-sm truncate tracking-tight">{item.title}</h4>
-                          {item.isNew && (
-                            <span className="flex-shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded uppercase border bg-rose-500 text-white border-rose-400 animate-pulse">NEW</span>
+                        <div key={place.id} className="mb-4">
+                          <RankTile item={item} idx={idx} />
+                          {idx === 14 && (
+                            <div className="mt-4"><AdUnit slotId="5769413560" layoutKey="-hp+7-l-2n+6x" /></div>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="flex items-center gap-1 text-[9px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">
-                            <Flame size={10} fill="currentColor" /> {item.score ?? item.like_count}
-                          </span>
-                          <span className="text-[9px] text-zinc-400 font-medium truncate">{item.secondaryText}</span>
-                        </div>
-                      </div>
-                      <Link href={item.href} className="p-2 bg-zinc-50 rounded-xl text-zinc-300 group-hover:bg-pace-50 group-hover:text-pace-500 transition-all">
-                        <ChevronRight size={18} />
-                      </Link>
-                    </div>
-
-                  {idx === 14 && (
-                    <AdUnit slotId="5769413560" layoutKey="-hp+7-l-2n+6x" />
-                  )}
-                </div>
                       );
                     })}
                   </>
@@ -975,7 +822,7 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
                   score: place.score,
                   like_count: place.like_count,
                   isNew: place.is_new,
-                  href: `/posts/${place.id}?region=축제&lang=${lang}`,
+                  href: placeHref(place, lang),
                 });
                 return (
                   <>
@@ -985,38 +832,12 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
                       const idx = i + 3;
                       const item = toItem(place);
                       return (
-                        <div key={place.id}>
-                    <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex gap-4 items-center relative group mb-4">
-                      <RankNumberBadge rank={idx + 1} />
-                      <div className="relative flex-shrink-0">
-                        <img src={item.image_url || `https://picsum.photos/seed/${item.id}/200`} className="w-16 h-16 rounded-2xl object-cover border border-zinc-50" alt={item.title || ''} referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLImageElement).src = `https://picsum.photos/seed/rank-${item.id}/200`; }} />
-                        <div className="absolute -bottom-1 -right-1 shadow-lg">
-                          <span className={item.badgeClass}>{item.badgeLabel}</span>
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="font-bold text-zinc-900 text-sm truncate tracking-tight">{item.title}</h4>
-                          {item.isNew && (
-                            <span className="flex-shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded uppercase border bg-rose-500 text-white border-rose-400 animate-pulse">NEW</span>
+                        <div key={place.id} className="mb-4">
+                          <RankTile item={item} idx={idx} />
+                          {idx === 14 && (
+                            <div className="mt-4"><AdUnit slotId="5769413560" layoutKey="-hp+7-l-2n+6x" /></div>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="flex items-center gap-1 text-[9px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">
-                            <Flame size={10} fill="currentColor" /> {item.score ?? item.like_count}
-                          </span>
-                          <span className="text-[9px] text-zinc-400 font-medium truncate">{item.secondaryText}</span>
-                        </div>
-                      </div>
-                      <Link href={item.href} className="p-2 bg-zinc-50 rounded-xl text-zinc-300 group-hover:bg-pace-50 group-hover:text-pace-500 transition-all">
-                        <ChevronRight size={18} />
-                      </Link>
-                    </div>
-
-                  {idx === 14 && (
-                    <AdUnit slotId="5769413560" layoutKey="-hp+7-l-2n+6x" />
-                  )}
-                </div>
                       );
                     })}
                   </>
@@ -1057,7 +878,7 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
                   score: place.score,
                   like_count: place.like_count,
                   isNew: place.is_new,
-                  href: `/posts/${place.id}?region=${encodeURIComponent(place.region || '성수')}&lang=${lang}`,
+                  href: placeHref(place, lang),
                 });
                 return (
                   <>
@@ -1067,38 +888,12 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
                       const idx = i + 3;
                       const item = toItem(place);
                       return (
-                        <div key={place.id}>
-                    <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex gap-4 items-center relative group mb-4">
-                      <RankNumberBadge rank={idx + 1} />
-                      <div className="relative flex-shrink-0">
-                        <img src={item.image_url || `https://picsum.photos/seed/${item.id}/200`} className="w-16 h-16 rounded-2xl object-cover border border-zinc-50" alt={item.title || ''} referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLImageElement).src = `https://picsum.photos/seed/rank-${item.id}/200`; }} />
-                        <div className="absolute -bottom-1 -right-1 shadow-lg">
-                          <span className={item.badgeClass}>{item.badgeLabel}</span>
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="font-bold text-zinc-900 text-sm truncate tracking-tight">{item.title}</h4>
-                          {item.isNew && (
-                            <span className="flex-shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded uppercase border bg-rose-500 text-white border-rose-400 animate-pulse">NEW</span>
+                        <div key={place.id} className="mb-4">
+                          <RankTile item={item} idx={idx} />
+                          {idx === 14 && (
+                            <div className="mt-4"><AdUnit slotId="5769413560" layoutKey="-hp+7-l-2n+6x" /></div>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="flex items-center gap-1 text-[9px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">
-                            <Flame size={10} fill="currentColor" /> {item.score ?? item.like_count}
-                          </span>
-                          <span className="text-[9px] text-zinc-400 font-medium truncate">{item.secondaryText}</span>
-                        </div>
-                      </div>
-                      <Link href={item.href} className="p-2 bg-zinc-50 rounded-xl text-zinc-300 group-hover:bg-pace-50 group-hover:text-pace-500 transition-all">
-                        <ChevronRight size={18} />
-                      </Link>
-                    </div>
-
-                  {idx === 14 && (
-                    <AdUnit slotId="5769413560" layoutKey="-hp+7-l-2n+6x" />
-                  )}
-                </div>
                       );
                     })}
                   </>
@@ -1139,7 +934,7 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
                   score: place.score,
                   like_count: place.like_count,
                   isNew: place.is_new,
-                  href: `/posts/${place.id}?region=${encodeURIComponent(place.region || '성수')}&lang=${lang}`,
+                  href: placeHref(place, lang),
                 });
                 return (
                   <>
@@ -1149,38 +944,12 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
                       const idx = i + 3;
                       const item = toItem(place);
                       return (
-                        <div key={place.id}>
-                    <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex gap-4 items-center relative group mb-4">
-                      <RankNumberBadge rank={idx + 1} />
-                      <div className="relative flex-shrink-0">
-                        <img src={item.image_url || `https://picsum.photos/seed/${item.id}/200`} className="w-16 h-16 rounded-2xl object-cover border border-zinc-50" alt={item.title || ''} referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLImageElement).src = `https://picsum.photos/seed/rank-${item.id}/200`; }} />
-                        <div className="absolute -bottom-1 -right-1 shadow-lg">
-                          <span className={item.badgeClass}>{item.badgeLabel}</span>
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="font-bold text-zinc-900 text-sm truncate tracking-tight">{item.title}</h4>
-                          {item.isNew && (
-                            <span className="flex-shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded uppercase border bg-rose-500 text-white border-rose-400 animate-pulse">NEW</span>
+                        <div key={place.id} className="mb-4">
+                          <RankTile item={item} idx={idx} />
+                          {idx === 14 && (
+                            <div className="mt-4"><AdUnit slotId="5769413560" layoutKey="-hp+7-l-2n+6x" /></div>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="flex items-center gap-1 text-[9px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">
-                            <Flame size={10} fill="currentColor" /> {item.score ?? item.like_count}
-                          </span>
-                          <span className="text-[9px] text-zinc-400 font-medium truncate">{item.secondaryText}</span>
-                        </div>
-                      </div>
-                      <Link href={item.href} className="p-2 bg-zinc-50 rounded-xl text-zinc-300 group-hover:bg-pace-50 group-hover:text-pace-500 transition-all">
-                        <ChevronRight size={18} />
-                      </Link>
-                    </div>
-
-                  {idx === 14 && (
-                    <AdUnit slotId="5769413560" layoutKey="-hp+7-l-2n+6x" />
-                  )}
-                </div>
                       );
                     })}
                   </>
@@ -1390,74 +1159,6 @@ export default function Recommendation({ places: initialPlaces = [], lang = 'ko'
                   </div>
                 )}
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* AI Course Creation Modal */}
-      <AnimatePresence>
-        {showCourseModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end justify-center" onClick={() => !isCreatingCourse && setShowCourseModal(false)}>
-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="w-full max-w-md bg-white rounded-t-[40px] p-8 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between items-start mb-2">
-                <h2 className="text-xl font-black text-zinc-900 tracking-tight">AI 자동코스 생성</h2>
-                <button onClick={() => setShowCourseModal(false)} className="p-2 bg-zinc-100 rounded-full"><X size={20} /></button>
-              </div>
-              <p className="text-[11px] font-bold text-zinc-400 flex items-center gap-1.5 mb-6">
-                <Info size={12} /> 오늘 남은 3시간코스 생성 횟수: {Math.max(courseUsage.limit - courseUsage.usage_count, 0)}/{courseUsage.limit}
-              </p>
-
-              <div className="space-y-3 mb-6">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">지역</label>
-                <div className="grid grid-cols-6 gap-1.5">
-                  {AI_COURSE_REGIONS.map((r) => (
-                    <button
-                      key={r}
-                      onClick={() => setCourseRegion(r)}
-                      className={cn("py-2.5 rounded-xl text-xs font-bold transition-all border", courseRegion === r ? "bg-pace-50 border-pace-200 text-pace-700" : "bg-zinc-50 border-transparent text-zinc-500")}
-                    >
-                      {r}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-3 mb-8">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">누구와 함께인가요?</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(Object.keys(COMPANION_LABEL) as Companion[]).map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => setCourseCompanion(c)}
-                      className={cn("py-3 rounded-2xl text-xs font-bold transition-all border", courseCompanion === c ? "bg-pace-50 border-pace-200 text-pace-700" : "bg-zinc-50 border-transparent text-zinc-500")}
-                    >
-                      {COMPANION_LABEL[c]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <motion.button
-                whileTap={{ scale: 0.96 }}
-                whileHover={{ scale: 1.02 }}
-                onClick={createAiCourse}
-                disabled={isCreatingCourse}
-                className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-pace-600 transition-all disabled:opacity-50 shadow-xl"
-              >
-                {isCreatingCourse ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    코스 설계 중...
-                  </>
-                ) : (
-                  <>
-                    <Clock size={18} /> 3시간코스 만들기
-                  </>
-                )}
-              </motion.button>
-
-              <AdUnit slotId="5769413560" layoutKey="-hp+7-l-2n+6x" />
             </motion.div>
           </motion.div>
         )}

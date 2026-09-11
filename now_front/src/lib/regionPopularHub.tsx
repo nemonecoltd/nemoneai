@@ -2,10 +2,12 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Flame } from 'lucide-react';
-import BrandTagline from '@/components/BrandTagline';
 import Logo from '@/components/Logo';
 import BottomNav from '@/components/BottomNav';
 import SiteFooter from '@/components/SiteFooter';
+import SideCardLayout from '@/components/sidecards/SideCardLayout';
+import { WIDE_FRAME, WIDE_FRAME_BORDER } from '@/components/sidecards/frame';
+import { cn } from '@/lib/utils';
 import AdUnit from '@/components/AdUnit';
 import RegionHubTickers from '@/components/RegionHubTickers';
 
@@ -167,7 +169,7 @@ export async function RegionPopularHubPage({ slug, lang }: { slug: string; lang:
   const backHref = `${PATH_PREFIX[lang]}/ranking/place`;
 
   return (
-    <div className="min-h-screen bg-zinc-50 max-w-md mx-auto relative shadow-2xl pb-28 border-x border-zinc-200">
+    <div className={cn("min-h-screen bg-zinc-50 relative pb-28", WIDE_FRAME, WIDE_FRAME_BORDER)}>
       <header className="sticky top-0 bg-white/90 backdrop-blur-xl z-50 border-b border-zinc-100 px-6 pt-4 pb-1">
         <div className="flex items-center gap-3">
           <Link href={backHref} className="p-2 -ml-2 hover:bg-zinc-100 rounded-full transition-colors text-zinc-600 flex-shrink-0">
@@ -189,12 +191,13 @@ export async function RegionPopularHubPage({ slug, lang }: { slug: string; lang:
           </div>
         </div>
         <h1 className="text-lg font-bold font-display tracking-tight text-zinc-900 mt-2">{c.heading(region)}</h1>
-        <BrandTagline />
       </header>
 
       <RegionHubTickers lang={lang} />
 
-      <main className="px-6 pt-6 space-y-3">
+      <main>
+      <SideCardLayout lang={lang}>
+      <div className="px-6 pt-6 space-y-3">
         <div className="flex flex-wrap gap-1.5 pb-2">
           {SLUGS.filter(x => x !== slug).map(x => (
             <Link
@@ -251,9 +254,11 @@ export async function RegionPopularHubPage({ slug, lang }: { slug: string; lang:
         <p className="text-xs text-zinc-400 leading-relaxed pt-2">{c.desc(region, area)}</p>
 
         <SiteFooter lang={lang} />
+      </div>
+      </SideCardLayout>
       </main>
 
-      <BottomNav region={SLUG_TO_REGION_KO[s]} lang={lang} />
+      <BottomNav region={SLUG_TO_REGION_KO[s]} lang={lang} wide />
     </div>
   );
 }

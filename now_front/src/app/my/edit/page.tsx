@@ -4,11 +4,13 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, Camera, Loader2, Save, User, Globe, Trash2, Bell, BellOff } from 'lucide-react';
-import BrandTagline from '@/components/BrandTagline';
+import SiteFooter from '@/components/SiteFooter';
+import SideCardLayout, { WIDE_FRAME, WIDE_FRAME_BORDER, useElementHeight } from '@/components/sidecards/SideCardLayout';
 import { createClient } from '@/utils/supabase/client';
 import { usePushSubscription } from '@/lib/usePushSubscription';
 import { Switch } from '@/components/ui/switch';
 import { Card } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 export default function EditProfilePage() {
   return (
@@ -26,6 +28,7 @@ function EditProfileContent() {
   const tr = (ko: string, en: string, zh: string, ja: string) =>
     lang === 'en' ? en : lang === 'zh' ? zh : lang === 'ja' ? ja : ko;
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [headerRef, headerH] = useElementHeight<HTMLElement>(96);
   const supabase = createClient();
   const { supported: pushSupported, subscribed: pushSubscribed, loading: pushLoading, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushSubscription();
 
@@ -52,7 +55,7 @@ function EditProfileContent() {
   useEffect(() => {
     if (!authLoading && !user) {
       const authUrl = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:3002';
-      window.location.href = `${authUrl}/login?next=${encodeURIComponent(window.location.origin)}`;
+      window.location.href = `${authUrl}/login?next=${encodeURIComponent(window.location.href)}`;
       return;
     } else if (user) {
       setName(user.user_metadata?.full_name || '');
@@ -199,18 +202,19 @@ function EditProfileContent() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 max-w-md mx-auto shadow-2xl border-x border-zinc-200 pb-20">
-      <header className="sticky top-0 bg-white/80 backdrop-blur-md z-50 border-b border-zinc-100 px-6 pt-4 pb-1">
+    <div className={cn("min-h-screen bg-zinc-50 pb-20", WIDE_FRAME, WIDE_FRAME_BORDER)}>
+      <header ref={headerRef} className="sticky top-0 bg-white/80 backdrop-blur-md z-50 border-b border-zinc-100 px-6 pt-4 pb-1">
         <div className="flex items-center gap-4">
           <button onClick={handleBack} className="p-2 -ml-2 hover:bg-zinc-100 rounded-full transition-colors text-zinc-600">
             <ChevronLeft size={24} />
           </button>
           <h1 className="text-lg font-bold font-display tracking-tight text-zinc-900">{tr('프로필 수정', 'Edit Profile', '编辑个人资料', 'プロフィール編集')}</h1>
         </div>
-        <BrandTagline />
       </header>
 
-      <main className="p-6 space-y-8">
+      <main>
+      <SideCardLayout headerH={headerH} bottomH={0} lang={lang}>
+      <div className="p-6 space-y-8">
         {error && (
           <div className="p-4 bg-rose-50 text-rose-600 text-sm font-bold rounded-2xl text-center">
             {error}
@@ -343,6 +347,9 @@ function EditProfileContent() {
           </button>
         </div>
 
+        <SiteFooter lang={lang} />
+      </div>
+      </SideCardLayout>
       </main>
     </div>
   );

@@ -83,7 +83,6 @@ def upsert_kakao_items(items: list[dict], category: Optional[str], region: Optio
         try:
             content = _build_content(item)
             embedding = get_embedding(content)
-            image_url = rehost_image(item.get("image_url")) or ""
 
             # 이미 번역돼 있으면 재요청 안 함(비용 절감) — 갱신(재수집) 때마다 매번 새로 번역할 필요 없음
             title_en, content_en, title_zh, content_zh, title_ja, content_ja = _existing_translation(kakao_place_id)
@@ -105,7 +104,6 @@ def upsert_kakao_items(items: list[dict], category: Optional[str], region: Optio
                 "latitude": item.get("latitude"),
                 "longitude": item.get("longitude"),
                 "naver_place_id": kakao_place_id,
-                "image_url": image_url,
                 # 매장 자체 홈페이지(인스타그램 등) — 큐레이터 개인 글이 아니라 업체가 직접
                 "link_url": item.get("homepage") or None,
                 "embedding": f"[{','.join(map(str, embedding))}]",
@@ -114,10 +112,15 @@ def upsert_kakao_items(items: list[dict], category: Optional[str], region: Optio
             }
 
             with engine.connect() as conn:
-                existing_id = conn.execute(
-                    text("SELECT id FROM seongsu_places WHERE naver_place_id = :naver_place_id OR title = :title LIMIT 1"),
+                existing_row = conn.execute(
+                    text("SELECT id, image_url FROM seongsu_places WHERE naver_place_id = :naver_place_id OR title = :title LIMIT 1"),
                     {"naver_place_id": kakao_place_id, "title": title},
-                ).scalar()
+                ).fetchone()
+                existing_id = existing_row[0] if existing_row else None
+
+                # 재수집 때마다 rehost_image()가 매번 새 파일명으로 새로 업로드해 옛 이미지가
+                # 고아로 쌓이던 문제(2026-09) — 이미 이미지가 있는 기존 장소는 재rehost하지 않는다.
+                params["image_url"] = existing_row[1] if (existing_id and existing_row[1]) else (rehost_image(item.get("image_url")) or "")
 
                 if existing_id:
                     conn.execute(text("""

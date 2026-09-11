@@ -9,7 +9,7 @@ import {
   Save, Send, MessageSquarePlus, Clock,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import BrandTagline from '@/components/BrandTagline';
+import SiteFooter from '@/components/SiteFooter';
 import HeaderControls from '@/components/HeaderControls';
 import Logo from '@/components/Logo';
 
@@ -237,7 +237,6 @@ export default function CourseEditPage() {
             {course.scope === 'timed' ? tr('3시간코스', '3-Hour Course', '3小时课程', '3時間コース') : tr('자유코스', 'Free Course', '自由课程', 'フリーコース')}
           </span>
         </div>
-        <BrandTagline lang={lang} />
       </header>
 
       <main className="px-6 py-6 space-y-6">
@@ -296,6 +295,7 @@ export default function CourseEditPage() {
             <Plus size={18} /> {tr('장소 추가', 'Add Place', '添加地点', '場所を追加')}
           </button>
         </div>
+        <SiteFooter lang={lang} />
       </main>
 
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-zinc-100 p-4 flex gap-2">

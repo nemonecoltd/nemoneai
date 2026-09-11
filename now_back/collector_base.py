@@ -3,6 +3,7 @@ from sqlalchemy import text
 from database import engine, cleanup_expired_data
 from gemini_service import get_embedding
 from image_storage import is_internal_url, delete_image
+from indexnow_service import ping_indexnow
 from datetime import date, timedelta
 
 
@@ -48,6 +49,7 @@ def upsert_items(combined_data: "list[dict]", region: Optional[str] = None):
     updated_count = 0
     fail_count = 0
     blocked_count = 0
+    new_urls = []  # IndexNow 핑용 — 이번 실행에서 진짜 신규 INSERT된 것만 모은다
 
     with engine.connect() as conn:
         blocked_ids, blocked_titles = _load_blocklist(conn)
@@ -147,11 +149,13 @@ def upsert_items(combined_data: "list[dict]", region: Optional[str] = None):
                     if is_internal_url(new_image) and is_internal_url(old_image) and new_image != old_image:
                         delete_image(old_image)
                 else:
-                    conn.execute(text("""
+                    new_row = conn.execute(text("""
                         INSERT INTO seongsu_places
                         (title, title_en, content, content_en, location, latitude, longitude, naver_place_id, video_url, image_url, embedding, end_date, date_range, region, link_url, category)
                         VALUES (:title, :title_en, :content, :content_en, :location, :latitude, :longitude, :naver_place_id, :video_url, :image_url, :embedding, :end_date, :date_range, :region, :link_url, :category)
-                    """), params)
+                        RETURNING id
+                    """), params).first()
+                    new_urls.append(f"https://now.nemoneai.com/posts/{new_row[0]}")
                     new_count += 1
                 conn.commit()
             except Exception as e:
@@ -161,6 +165,8 @@ def upsert_items(combined_data: "list[dict]", region: Optional[str] = None):
 
     if blocked_count:
         print(f"  🚫 삭제 블록리스트에 있어 건너뜀: {blocked_count}개")
+
+    ping_indexnow(new_urls)
 
     return new_count, updated_count, fail_count
 

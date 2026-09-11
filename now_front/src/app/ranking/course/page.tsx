@@ -1,7 +1,10 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Heart } from 'lucide-react';
-import BrandTagline from '@/components/BrandTagline';
+import SiteFooter from '@/components/SiteFooter';
+import SideCardLayout from '@/components/sidecards/SideCardLayout';
+import { WIDE_FRAME, WIDE_FRAME_BORDER } from '@/components/sidecards/frame';
+import { cn } from '@/lib/utils';
 
 const BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:8081';
 
@@ -57,7 +60,7 @@ export default async function CourseRankingPage({ searchParams }: { searchParams
     lang === 'en' ? en : lang === 'zh' ? zh : lang === 'ja' ? ja : ko;
 
   return (
-    <div className="min-h-screen bg-zinc-50 max-w-md mx-auto relative shadow-2xl pb-16 border-x border-zinc-200">
+    <div className={cn("min-h-screen bg-zinc-50 relative pb-16", WIDE_FRAME, WIDE_FRAME_BORDER)}>
       <header className="sticky top-0 bg-white/90 backdrop-blur-xl z-50 border-b border-zinc-100 px-6 pt-4 pb-1">
         <div className="flex items-center gap-4">
           <Link href={`/?lang=${lang}`} className="p-2 -ml-2 hover:bg-zinc-100 rounded-full transition-colors text-zinc-600">
@@ -65,10 +68,11 @@ export default async function CourseRankingPage({ searchParams }: { searchParams
           </Link>
           <h1 className="text-lg font-bold font-display tracking-tight text-zinc-900">{tr('AI 코스 랭킹', 'AI Course Ranking', 'AI路线排名', 'AIコースランキング')}</h1>
         </div>
-        <BrandTagline lang={lang} />
       </header>
 
-      <main className="px-6 pt-6 space-y-4">
+      <main>
+      <SideCardLayout lang={lang} bottomH={0}>
+      <div className="px-6 pt-6 space-y-4">
         <p className="text-xs text-zinc-400 leading-relaxed">
           {tr(
             '성수·홍대·강북·제주에서 유저들이 직접 만들고 저장한 3시간 AI 코스를 좋아요 순으로 보여드립니다.',
@@ -115,6 +119,9 @@ export default async function CourseRankingPage({ searchParams }: { searchParams
             </ul>
           </div>
         ))}
+        <SiteFooter lang={lang} />
+      </div>
+      </SideCardLayout>
       </main>
     </div>
   );

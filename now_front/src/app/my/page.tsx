@@ -9,14 +9,11 @@ import {
   MessageSquare, Settings, Library, Edit3, Plus, Save, Calendar, Video, ExternalLink
 } from 'lucide-react';
 import Link from 'next/link';
-import BrandTagline from '@/components/BrandTagline';
+import SideCardLayout, { WIDE_FRAME, WIDE_FRAME_BORDER, useElementHeight } from '@/components/sidecards/SideCardLayout';
+import SiteFooter from '@/components/SiteFooter';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/lib/utils';
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 type Tab = 'theme' | 'course' | 'place' | 'ranking';
 
@@ -68,6 +65,7 @@ function MyPageContent() {
   const tr = (ko: string, en: string, zh: string, ja: string) =>
     lang === 'en' ? en : lang === 'zh' ? zh : lang === 'ja' ? ja : ko;
   const [activeTab, setActiveTab] = useState<Tab>('place');
+  const [headerRef, headerH] = useElementHeight<HTMLElement>(96);
   const [likedPlaces, setLikedPlaces] = useState<any[]>([]);
   const [savedCourses, setSavedCourses] = useState([]);
   const [userThemes, setUserThemes] = useState([]);
@@ -203,14 +201,14 @@ function MyPageContent() {
       </div>
       <h2 className="text-2xl font-bold font-display">{tr('로그인이 필요합니다', 'Login required', '需要登录', 'ログインが必要です')}</h2>
       <p className="text-zinc-500 text-sm">{tr('마이페이지를 확인하시려면 로그인해 주세요.', 'Please log in to view your page.', '请登录以查看我的页面。', 'マイページを確認するにはログインしてください。')}</p>
-      <button onClick={() => { const u = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:3002'; window.location.href = `${u}/login?next=${encodeURIComponent(window.location.origin)}`; }} className="w-full max-w-xs py-4 bg-zinc-900 text-white rounded-2xl font-bold shadow-xl">{tr('로그인하기', 'Log in', '登录', 'ログインする')}</button>
+      <button onClick={() => { const u = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:3002'; window.location.href = `${u}/login?next=${encodeURIComponent(window.location.href)}`; }} className="w-full max-w-xs py-4 bg-zinc-900 text-white rounded-2xl font-bold shadow-xl">{tr('로그인하기', 'Log in', '登录', 'ログインする')}</button>
       <button onClick={() => router.push(`/?lang=${lang}`)} className="text-zinc-400 text-sm font-bold">{tr('홈으로 돌아가기', 'Back to home', '返回首页', 'ホームに戻る')}</button>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-zinc-50 max-w-md mx-auto relative shadow-2xl pb-32 border-x border-zinc-200">
-      <header className="fixed top-0 left-0 right-0 max-w-md mx-auto bg-white/80 backdrop-blur-md z-50 border-b border-zinc-100 px-6 pt-4 pb-1">
+    <div className={cn("min-h-screen bg-zinc-50 relative pb-32", WIDE_FRAME, WIDE_FRAME_BORDER)}>
+      <header ref={headerRef} className="sticky top-0 bg-white/80 backdrop-blur-md z-50 border-b border-zinc-100 px-6 pt-4 pb-1">
         <div className="flex items-center gap-4">
           <button onClick={() => router.push(`/?lang=${lang}`)} className="p-2 hover:bg-zinc-100 rounded-full transition-colors">
             <ChevronLeft size={24} />
@@ -227,10 +225,10 @@ function MyPageContent() {
             </button>
           </div>
         </div>
-        <BrandTagline />
       </header>
 
-      <div className="bg-white px-8 pt-28 pb-10 rounded-b-[40px] shadow-sm">
+      <SideCardLayout headerH={headerH} bottomH={0} lang={lang}>
+      <div className="bg-white px-8 pt-10 pb-10 rounded-b-[40px] shadow-sm">
         <div className="flex items-center gap-6 mb-8">
           <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-pace-50 shadow-lg flex-shrink-0 bg-zinc-100">
             <img
@@ -434,7 +432,9 @@ function MyPageContent() {
             </motion.div>
           )}
         </AnimatePresence>
+        <SiteFooter lang={lang} />
       </main>
+      </SideCardLayout>
 
       {/* Theme Edit Modal */}
       <AnimatePresence>

@@ -1,6 +1,9 @@
+import logging
 import os
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 # .env 파일 로드
 load_dotenv()
@@ -26,16 +29,30 @@ def cleanup_expired_data():
 
     with engine.connect() as conn:
         expired = conn.execute(
-            text("SELECT image_url FROM seongsu_places WHERE end_date IS NOT NULL AND end_date < CURRENT_DATE - INTERVAL '45 days'")
+            text("SELECT id, image_url FROM seongsu_places WHERE end_date IS NOT NULL AND end_date < CURRENT_DATE - INTERVAL '45 days'")
         ).fetchall()
         conn.execute(
             text("DELETE FROM seongsu_places WHERE end_date IS NOT NULL AND end_date < CURRENT_DATE - INTERVAL '45 days'")
         )
         conn.commit()
 
+    # 고아 이미지(2026-09-03, 5,967개/405MB 발견) 원인 추적용 — 건별 결과를 집계해 남긴다.
+    tally = {"deleted": 0, "failed": 0, "skipped": 0, "no_image": 0}
     for row in expired:
-        if row[0]:
-            delete_image(row[0])
+        place_id, image_url = row[0], row[1]
+        if not image_url:
+            tally["no_image"] += 1
+            continue
+        outcome = delete_image(image_url)
+        tally[outcome] += 1
+        if outcome == "failed":
+            logger.warning("[cleanup] 이미지 삭제 실패 (place_id=%s, url=%s)", place_id, image_url)
+
+    if expired:
+        logger.info(
+            "[cleanup] 45일 경과 %d건 삭제 — 이미지: 삭제 %d / 실패 %d / 내부아님-스킵 %d / 이미지없음 %d",
+            len(expired), tally["deleted"], tally["failed"], tally["skipped"], tally["no_image"],
+        )
 
     # 공유/마이페이지 저장 랭킹 스냅샷도 동일한 45일 유예 후 삭제 — 테이블이 없으면(첫 배포 전) 조용히 스킵
     with engine.connect() as conn:

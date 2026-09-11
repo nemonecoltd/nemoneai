@@ -18,9 +18,12 @@ from schemas import PlaceUpdate
 router = APIRouter()
 
 @router.get("/places")
-async def list_places(region: Optional[str] = None, category: Optional[str] = None, limit: Optional[int] = None, offset: int = 0, sort: Optional[str] = None, mood: Optional[str] = None):
+async def list_places(region: Optional[str] = None, category: Optional[str] = None, limit: Optional[int] = None, offset: int = 0, sort: Optional[str] = None, mood: Optional[str] = None, category_tag: Optional[str] = None, pinned: Optional[bool] = None):
     # limit 미지정 시 기존 동작(전체 반환) 유지 — sitemap.ts/posts 상세 페이지가 region 없이 전체를 가져와 사용함
     where_clause = "WHERE p.region = :region AND (p.end_date IS NULL OR p.end_date >= CURRENT_DATE)" if region else "WHERE (p.end_date IS NULL OR p.end_date >= CURRENT_DATE)"
+    # 홈 "이번 주 HOT PLACE" 전용 — 어드민이 pinned_at을 찍어둔 장소만 뽑는다(기존엔 정렬 우선순위로만 썼음).
+    if pinned:
+        where_clause += " AND p.pinned_at IS NOT NULL"
     # 공연은 KOPIS 데이터만 목록에 노출 (구 소스는 SEO 색인 보존을 위해 DB엔 남기되 리스트에서만 제외, 만료는 기존 45일 유예 로직에 위임)
     if region == "공연":
         where_clause += " AND p.naver_place_id LIKE 'kopis_%'"
@@ -50,9 +53,16 @@ async def list_places(region: Optional[str] = None, category: Optional[str] = No
         if mood not in MOOD_TAGS:
             raise HTTPException(status_code=400, detail="알 수 없는 무드 태그")
         where_clause += " AND p.mood_tags @> ARRAY[:mood]::text[]"
+    # 카테고리 태그 필터(패션/뷰티/캐릭터/애니웹툰/종합) — 무드와 같은 이유로 고정 세트만 허용.
+    if category_tag:
+        from category_tags import CATEGORY_TAGS
+        if category_tag not in CATEGORY_TAGS:
+            raise HTTPException(status_code=400, detail="알 수 없는 카테고리 태그")
+        where_clause += " AND p.category_tag = :category_tag"
     limit_clause = "LIMIT :limit OFFSET :offset" if limit is not None else ""
-    base_cols = "p.id, p.title, p.title_en, p.title_zh, p.title_ja, p.content, p.content_en, p.content_zh, p.content_ja, p.image_url, p.video_url, p.location, p.date_range, p.end_date, p.latitude, p.longitude, p.region, p.category, p.pinned_at, p.naver_place_id, p.mood_tags"
-    # sort 옵션: 'latest'(신규 수집순), 'popular'(최근 30일 조회+좋아요 인기순), 'closing'(마감임박순), 기본은 랜덤
+    base_cols = "p.id, p.title, p.title_en, p.title_zh, p.title_ja, p.content, p.content_en, p.content_zh, p.content_ja, p.image_url, p.video_url, p.location, p.date_range, p.end_date, p.latitude, p.longitude, p.region, p.category, p.pinned_at, p.naver_place_id, p.mood_tags, p.category_tag"
+    # sort 옵션: 'latest'(신규 수집순), 'new'(48시간 이내 신규 중 랜덤), 'popular'(최근 30일
+    # 조회+좋아요 인기순), 'closing'(마감임박순), 기본은 랜덤
     # 예전엔 GREATEST(updated_at, created_at)를 썼는데, 블로그갱신(어드민 수동 편집 + 신규 팝업 자동갱신 스케줄러)이
     # updated_at을 계속 찍다 보니 몇 달 전 수집된 팝업이 오늘 갱신됐다는 이유만으로 "최신순" 상위에 튀어오르는
     # 문제가 생김 — "최신순"은 사용자 입장에서 "신규 추가"를 의미하므로 created_at만 기준으로 함
@@ -65,6 +75,17 @@ async def list_places(region: Optional[str] = None, category: Optional[str] = No
             f"{where_clause} "
             f"GROUP BY p.id "
             f"ORDER BY p.pinned_at DESC NULLS LAST, score DESC, p.created_at DESC {limit_clause}"
+        )
+    elif sort == "new":
+        # 'latest'(created_at DESC)는 스크래핑이 지역을 순차 처리해 각 지역이 삽입 시점의 NOW()를
+        # 그대로 찍다 보니, 마지막에 처리된 지역(예: 부산)이 최신 슬롯을 독점하는 문제가 있었다
+        # (2026-09-10 "신규 팝업 리스트에 부산만 나온다" 리포트). 48시간 이내로 모수를 좁히고
+        # RANDOM()으로 섞어 지역이 고르게 섞이게 한다 — ranking_service.py가 "최근 48시간" 기준을
+        # 이미 쓰고 있는 것과 동일한 창.
+        query = text(
+            f"SELECT {base_cols} "
+            f"FROM seongsu_places p {where_clause} AND p.created_at >= NOW() - INTERVAL '48 hours' "
+            f"ORDER BY p.pinned_at DESC NULLS LAST, RANDOM() {limit_clause}"
         )
     else:
         order_clause = (
@@ -85,6 +106,8 @@ async def list_places(region: Optional[str] = None, category: Optional[str] = No
             params["region"] = region
         if mood:
             params["mood"] = mood
+        if category_tag:
+            params["category_tag"] = category_tag
         result = conn.execute(query, params)
         return [dict(row._mapping) for row in result]
 
@@ -103,7 +126,7 @@ async def list_place_categories(region: str):
 
 @router.get("/places/{place_id}")
 async def get_place(place_id: int):
-    query = text("SELECT id, title, title_en, title_zh, title_ja, content, content_en, content_zh, content_ja, image_url, video_url, location, date_range, end_date, latitude, longitude, region, category, naver_place_id, blog_reviews, link_url, link_title, created_at, mood_tags FROM seongsu_places WHERE id = :id")
+    query = text("SELECT id, title, title_en, title_zh, title_ja, content, content_en, content_zh, content_ja, image_url, video_url, location, date_range, end_date, latitude, longitude, region, category, naver_place_id, blog_reviews, link_url, link_title, created_at, mood_tags, category_tag FROM seongsu_places WHERE id = :id")
     with engine.connect() as conn:
         result = conn.execute(query, {"id": place_id})
         row = result.fetchone()

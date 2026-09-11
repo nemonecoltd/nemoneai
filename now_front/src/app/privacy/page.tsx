@@ -1,5 +1,9 @@
 import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
+import SiteFooter from '@/components/SiteFooter';
+import SideCardLayout from '@/components/sidecards/SideCardLayout';
+import { WIDE_FRAME, WIDE_FRAME_BORDER } from '@/components/sidecards/frame';
+import { cn } from '@/lib/utils';
 
 export const metadata = {
   // title.absolute — 루트 레이아웃의 "%s | NEMONE PACE" 템플릿을 우회.
@@ -25,8 +29,8 @@ export default async function PrivacyPolicy({ searchParams }: { searchParams: Pr
     lang === 'en' ? en : lang === 'zh' ? zh : lang === 'ja' ? ja : ko;
 
   return (
-    <div className="min-h-screen bg-zinc-50 max-w-md mx-auto relative shadow-2xl pb-32 border-x border-zinc-200">
-      <header className="fixed top-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-xl z-50 border-b border-zinc-100 px-6 py-4 flex items-center gap-4">
+    <div className={cn("min-h-screen bg-zinc-50 relative pb-32", WIDE_FRAME, WIDE_FRAME_BORDER)}>
+      <header className="sticky top-0 bg-white/90 backdrop-blur-xl z-50 border-b border-zinc-100 px-6 py-4 flex items-center gap-4">
         <Link href={`/?lang=${lang}`} className="p-2 -ml-2 hover:bg-zinc-100 rounded-full transition-colors text-zinc-600">
           <ChevronLeft size={24} />
         </Link>
@@ -35,7 +39,9 @@ export default async function PrivacyPolicy({ searchParams }: { searchParams: Pr
         </h1>
       </header>
 
-      <main className="px-6 pt-24 pb-10">
+      <main>
+      <SideCardLayout lang={lang} bottomH={0}>
+      <div className="px-6 pt-6 pb-10">
         <div className="bg-white p-8 rounded-[32px] border border-zinc-100 shadow-sm prose prose-sm prose-zinc max-w-none text-zinc-600">
           <h2 className="text-xl font-black text-zinc-900 mb-6">
             {tr('개인정보처리방침', 'Privacy Policy', '隐私政策', 'プライバシーポリシー')}
@@ -268,6 +274,9 @@ export default async function PrivacyPolicy({ searchParams }: { searchParams: Pr
             <p className="font-bold text-zinc-900">{tr('네모네 주식회사', 'NEMONE Inc.', 'NEMONE股份有限公司', 'NEMONE株式会社')}</p>
           </div>
         </div>
+        <SiteFooter lang={lang} />
+      </div>
+      </SideCardLayout>
       </main>
     </div>
   );

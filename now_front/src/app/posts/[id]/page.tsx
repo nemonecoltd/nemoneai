@@ -56,6 +56,23 @@ async function getSuggestions(excludeId: string, region: string, group: 'popup' 
   }
 }
 
+// "이 지역 인기장소" — /places/popular?region=X는 ranking_service.py의 인기 랭킹 캐시(조회+좋아요
+// 가중치) 그대로라 무작위 추천(getSuggestions)과 달리 실제 순위를 보여준다. 현재 보고 있는
+// 장소가 자기 지역 순위에 떠 있을 수 있어 여유 있게 4개 받아 제외 후 3개로 자른다(2026-09-07,
+// "추천! 인기코스"를 지역 활동성 강화 목적으로 교체).
+async function getRegionTop3(excludeId: string, region: string): Promise<Place[]> {
+  try {
+    const res = await fetch(`${BACKEND}/places/popular?region=${encodeURIComponent(region)}&limit=4`, {
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return [];
+    const all: Place[] = await res.json();
+    return all.filter((p) => p.id !== Number(excludeId)).slice(0, 3);
+  } catch {
+    return [];
+  }
+}
+
 function cleanDescription(raw: string): string {
   const flat = raw
     .replace(/\r?\n+/g, ' ')
@@ -155,7 +172,10 @@ export default async function PostDetailPage({
   if (!place) {
     notFound();
   }
-  const suggestions = await getSuggestions(id, place.region || '성수', popupCategoryGroup(place.category));
+  const [suggestions, regionTop3] = await Promise.all([
+    getSuggestions(id, place.region || '성수', popupCategoryGroup(place.category)),
+    getRegionTop3(id, place.region || '성수'),
+  ]);
 
-  return <PlaceDetailClient place={place} lang={lang} suggestions={suggestions} />;
+  return <PlaceDetailClient place={place} lang={lang} suggestions={suggestions} regionTop3={regionTop3} />;
 }

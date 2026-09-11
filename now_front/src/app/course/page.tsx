@@ -1,18 +1,19 @@
 "use client";
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Clock, Info, Loader2, Sparkles } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import BrandTagline from '@/components/BrandTagline';
 import BottomNav from '@/components/BottomNav';
 import HeaderControls from '@/components/HeaderControls';
 import Logo from '@/components/Logo';
-import StoreBanner from '@/components/StoreBanner';
 import SiteFooter from '@/components/SiteFooter';
+import CourseRankingSection from '@/components/CourseRankingSection';
 import AdUnit from '@/components/AdUnit';
+import SideCardLayout, { WIDE_FRAME, WIDE_FRAME_BORDER, useElementHeight } from '@/components/sidecards/SideCardLayout';
+import { cn } from '@/lib/utils';
 
 const PLACE_REGIONS = ['성수', '홍대', '강북', '강남', '부산', '제주'] as const;
 type Region = typeof PLACE_REGIONS[number];
@@ -48,6 +49,8 @@ function CourseHubContent() {
   const [region, setRegion] = useState<Region>('성수');
   const [companion, setCompanion] = useState<Companion>('solo');
   const [isCreating, setIsCreating] = useState(false);
+
+  const [headerRef, headerH] = useElementHeight<HTMLElement>(96);
 
   useEffect(() => {
     if (!user?.id) { setIsLoading(false); return; }
@@ -112,9 +115,13 @@ function CourseHubContent() {
     else router.push('/');
   };
 
+  // 카드가 있는 페이지는 상/하단바까지 포함해 홈과 같은 폭(xl:max-w-6xl)으로 넓어지고, 카드는
+  // 그 넓어진 프레임 '안', 본문(<main>) 안에서 기존 콘텐츠 양옆에 배치된다(2026-09-07,
+  // HomeClient.tsx의 SPA 탭들과 동일한 원칙 — 이 페이지는 그 SPA 밖의 별도 라우트라 처음엔
+  // 놓쳤다가 다시 맞춤).
   return (
-    <div className="min-h-screen bg-zinc-50 max-w-md mx-auto relative shadow-2xl border-x border-zinc-200">
-      <header className="sticky top-0 bg-white/90 backdrop-blur-xl z-40 border-b border-zinc-100 px-6 pt-4 pb-1">
+    <div className={cn("min-h-screen bg-zinc-50 relative", WIDE_FRAME, WIDE_FRAME_BORDER)}>
+      <header ref={headerRef} className="sticky top-0 bg-white/90 backdrop-blur-xl z-40 border-b border-zinc-100 px-6 pt-4 pb-1">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2 min-w-0">
             <button onClick={handleBack} className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-all">
@@ -124,10 +131,11 @@ function CourseHubContent() {
           </div>
           <HeaderControls />
         </div>
-        <BrandTagline lang={lang} />
       </header>
 
-      <main className="px-6 py-6 space-y-6 pb-28">
+      <main>
+      <SideCardLayout headerH={headerH} lang={lang}>
+      <div className="px-6 py-6 space-y-6 pb-28">
         <div className="flex gap-2">
           <button className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all bg-zinc-900 text-white shadow-sm">
             {tr('3시간코스', '3-Hour Course', '3小时课程', '3時間コース')}
@@ -196,8 +204,14 @@ function CourseHubContent() {
           )}
         </div>
 
-        <StoreBanner />
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold text-zinc-500 uppercase tracking-widest">{tr('3시간코스 랭킹', '3-Hour Course Ranking', '3小时路线排行', '3時間コースランキング')}</h2>
+          <CourseRankingSection lang={lang} />
+        </div>
+
         <SiteFooter lang={lang} />
+      </div>
+      </SideCardLayout>
       </main>
 
       <AnimatePresence>
@@ -262,7 +276,7 @@ function CourseHubContent() {
         )}
       </AnimatePresence>
 
-      <BottomNav region={region} lang={lang} />
+      <BottomNav region={region} lang={lang} wide />
     </div>
   );
 }

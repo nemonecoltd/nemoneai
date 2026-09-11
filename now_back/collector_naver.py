@@ -16,6 +16,7 @@ from database import engine
 from gemini_service import get_embedding, ai_translate
 from scraper_naver_map_v2 import scrape_naver_map_popups
 from collector_base import cleanup_expired
+from indexnow_service import ping_indexnow
 from image_storage import rehost_image
 from notification import send_alert
 
@@ -89,6 +90,7 @@ def upsert_naver_items(items: list[dict], region: str, category: Optional[str] =
     new_count = 0
     updated_count = 0
     fail_count = 0
+    new_urls = []  # IndexNow 핑용
     for item in reversed(items):
         title = item["title"].strip()
         naver_place_id = item.get("naver_place_id", "")
@@ -148,7 +150,6 @@ def upsert_naver_items(items: list[dict], region: str, category: Optional[str] =
                 "longitude":      item.get("longitude"),
                 "naver_place_id": naver_place_id,
                 "video_url":      item.get("video_url", ""),
-                "image_url":      rehost_image(item.get("image_url")) or "",
                 "embedding":      f"[{','.join(map(str, embedding))}]",
                 "end_date":       end_date,
                 "real_end_date":  item.get("end_date"),
@@ -159,23 +160,33 @@ def upsert_naver_items(items: list[dict], region: str, category: Optional[str] =
 
             with engine.connect() as conn:
                 # naver_place_id가 바뀌어도(팝업 재등록 등) title이 같으면 같은 장소로 취급해 병합
-                existing_id = conn.execute(
-                    text("SELECT id FROM seongsu_places WHERE naver_place_id = :naver_place_id OR title = :title LIMIT 1"),
+                existing_row = conn.execute(
+                    text("SELECT id, image_url FROM seongsu_places WHERE naver_place_id = :naver_place_id OR title = :title LIMIT 1"),
                     {"naver_place_id": naver_place_id, "title": title}
-                ).scalar()
+                ).fetchone()
+                existing_id = existing_row[0] if existing_row else None
 
                 if not existing_id and date_range:
                     # naver_place_id도 다르고 title도 완전히 다른 문자열이지만(다른 블로그 글을 따로 수집한 경우),
                     # 같은 지역+같은 운영기간에 제목이 사실상 같은 팝업이면 중복 등록을 막기 위해 유사도로 한 번 더 확인
                     candidates = conn.execute(
-                        text("SELECT id, title FROM seongsu_places WHERE region = :region AND date_range = :date_range"),
+                        text("SELECT id, title, image_url FROM seongsu_places WHERE region = :region AND date_range = :date_range"),
                         {"region": region, "date_range": date_range}
                     ).fetchall()
                     norm_title = _normalize_title(title)
-                    for cand_id, cand_title in candidates:
+                    for cand_id, cand_title, cand_image_url in candidates:
                         if SequenceMatcher(None, norm_title, _normalize_title(cand_title)).ratio() > 0.6:
                             existing_id = cand_id
+                            existing_row = (cand_id, cand_image_url)
                             break
+
+                # 재수집 때마다 rehost_image()가 매번 새 파일명으로 새로 업로드해 옛 이미지가
+                # 고아로 쌓이던 문제(2026-09, 5,967개/405MB 발견) — 이미 이미지가 있는 기존
+                # 장소는 재수집으로 다시 rehost하지 않고 기존 값을 그대로 유지한다.
+                if existing_id and existing_row[1]:
+                    params["image_url"] = existing_row[1]
+                else:
+                    params["image_url"] = rehost_image(item.get("image_url")) or ""
 
                 if existing_id:
                     conn.execute(text("""
@@ -202,14 +213,16 @@ def upsert_naver_items(items: list[dict], region: str, category: Optional[str] =
                     """), {**params, "id": existing_id})
                     updated_count += 1
                 else:
-                    conn.execute(text("""
+                    new_row = conn.execute(text("""
                         INSERT INTO seongsu_places
                         (title, title_en, title_zh, title_ja, content, content_en, content_zh, content_ja, location, latitude, longitude,
                          naver_place_id, video_url, image_url, embedding, end_date, date_range, region, category)
                         VALUES
                         (:title, :title_en, :title_zh, :title_ja, :content, :content_en, :content_zh, :content_ja, :location, :latitude, :longitude,
                          :naver_place_id, :video_url, :image_url, :embedding, :end_date, :date_range, :region, :category)
-                    """), params)
+                        RETURNING id
+                    """), params).first()
+                    new_urls.append(f"https://now.nemoneai.com/posts/{new_row[0]}")
                     new_count += 1
                 conn.commit()
                 print(f"    ✅ 저장 완료")
@@ -217,6 +230,8 @@ def upsert_naver_items(items: list[dict], region: str, category: Optional[str] =
             conn.rollback()
             fail_count += 1
             print(f"    ❌ 저장 실패: {e}")
+
+    ping_indexnow(new_urls)
 
     return new_count, updated_count, fail_count
 

@@ -144,10 +144,15 @@ def get_storage_usage() -> dict:
     }
 
 
-def delete_image(url: Optional[str]) -> None:
-    """우리 Supabase Storage에 있는 이미지면 삭제. 외부 URL은 무시."""
+def delete_image(url: Optional[str]) -> str:
+    """우리 Supabase Storage에 있는 이미지면 삭제. 외부 URL/빈 값은 무시.
+
+    반환값은 호출부(cleanup_expired_data 등)가 성공/실패/스킵 건수를 집계해 로그로
+    남길 수 있도록 함 — 고아 이미지 5,967개(2026-09-03 발견)가 어느 경로에서 새는지
+    지금까지 로그가 전혀 없어 특정을 못 했던 문제를 고치기 위함.
+    """
     if not is_internal_url(url):
-        return
+        return "skipped"
     path = url[len(_STORAGE_PREFIX):]
     try:
         resp = requests.delete(
@@ -155,7 +160,10 @@ def delete_image(url: Optional[str]) -> None:
             headers=_auth_headers(),
             timeout=10,
         )
-        if resp.status_code not in (200, 404):
-            logger.warning("[image_storage] 삭제 실패 (path=%s): %s", path, resp.text)
+        if resp.status_code in (200, 404):
+            return "deleted"
+        logger.warning("[image_storage] 삭제 실패 (path=%s): %s", path, resp.text)
+        return "failed"
     except Exception as e:
         logger.warning("[image_storage] 삭제 중 오류 (path=%s): %s", path, e)
+        return "failed"
